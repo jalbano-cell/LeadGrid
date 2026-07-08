@@ -655,9 +655,8 @@ function enrich(b){
 }
 LEADS.forEach(enrich); POOL.forEach(enrich);
 const addedProspects=new Set();
-let livePool=[];              // businesses fetched live from Google Places or OpenStreetMap
+let livePool=[];              // businesses fetched live from Google Places
 let PLACES_KEY='';            // kept in sync with GOOGLE_KEY below — Places search reads this
-let finderSource='osm';       // 'google' | 'osm' | 'demo' — Lead Finder data source
 let GOOGLE_KEY=localStorage.getItem('lg_google_key')||'';       // shared Google API key (map + search)
 let GOOGLE_MAP_ID=localStorage.getItem('lg_google_mapid')||'';  // optional; falls back to DEMO_MAP_ID
 PLACES_KEY=GOOGLE_KEY;
@@ -1123,26 +1122,19 @@ function addProspectToCRM(pid){
 }
 
 /* ========== LEAD FINDER ========== */
-function setFinderSource(src){finderSource=src;renderFinder();}
+function syncFindBtn(){
+  const btn=$('#findbtn'); if(!btn)return;
+  const has=!!($('#fkey').value||'').trim();
+  btn.disabled=!has; btn.style.opacity=has?1:.5; btn.style.cursor=has?'pointer':'not-allowed';
+}
 function renderFinder(){
-  const srcPhrase=finderSource==='google'?'Google Places':finderSource==='osm'?'OpenStreetMap (Overpass)':'built-in demo data';
-  $('#v-finder').innerHTML=`<div class="viewhead"><div><div class="t">Lead Finder</div><div class="s">Search real local businesses via ${srcPhrase} — exact locations, pulled onto the map</div></div></div>
-    <div class="card" style="margin-bottom:14px">
+  $('#v-finder').innerHTML=`<div class="viewhead"><div><div class="t">Lead Finder</div><div class="s">Search real local businesses via Google Places — exact locations, pulled onto the map</div></div></div>
+    <div class="card" style="margin-bottom:16px">
       <div class="keyrow">
-        <div class="flbl" style="margin-bottom:0">Data source</div>
-        <div class="seg" id="sourceseg">
-          <button class="${finderSource==='google'?'on':''}" onclick="setFinderSource('google')">Google</button>
-          <button class="${finderSource==='osm'?'on':''}" onclick="setFinderSource('osm')">OpenStreetMap (free)</button>
-          <button class="${finderSource==='demo'?'on':''}" onclick="setFinderSource('demo')">Demo</button>
-        </div>
+        <div style="flex:1;min-width:220px"><div class="flbl">Google API key</div>
+          <input id="fkey" type="password" placeholder="Paste your Google API key" value="${GOOGLE_KEY?GOOGLE_KEY:''}" oninput="syncFindBtn()" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px"></div>
+        <div class="keynote">${ic('link','#5C6E8A',12)} Shared with the map. Stays in your browser. Restrict the key by HTTP referrer, or use the server route (see chat) for production.</div>
       </div>
-      ${finderSource==='google'?`
-      <div class="keyrow" style="margin-top:12px">
-        <div style="flex:1;min-width:220px"><div class="flbl">Google Places API key</div>
-          <input id="fkey" type="password" placeholder="Paste key to search live · leave blank for demo data" value="${GOOGLE_KEY?GOOGLE_KEY:''}" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px"></div>
-        <div class="keynote">${ic('link','#5C6E8A',12)} Stays in your browser. Restrict the key by HTTP referrer, or use the server route (see chat) for production.</div>
-      </div>`:''}
-      ${finderSource==='osm'?`<div class="keynote" style="margin-top:12px">${ic('link','#5C6E8A',12)} Free, no API key — queries OpenStreetMap via the Overpass API. No ratings/reviews and usually no email.</div>`:''}
     </div>
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
@@ -1153,10 +1145,10 @@ function renderFinder(){
           <datalist id="arealist"><option>Mississauga, ON</option><option>Oakville, ON</option><option>North York, ON</option><option>Vaughan, ON</option><option>Scarborough, ON</option><option>Toronto, ON</option></datalist></div>
         <div><div class="flbl">Filter</div>
           <label style="display:flex;align-items:center;gap:7px;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:11px 12px;font-size:13px"><input type="checkbox" id="fnoweb"> No website only</label></div>
-        <button class="btn" id="findbtn" onclick="runFinder()">${ic('search','#fff')} Find leads</button>
+        <button class="btn" id="findbtn" onclick="runFinder()"${GOOGLE_KEY?'':' disabled style="opacity:.5;cursor:not-allowed"'}">${ic('search','#fff')} Find leads</button>
       </div>
     </div>
-    <div id="finderresults"><div class="empty">${ic('search','#5C6E8A',40)}<div>Pick a business type and area, then run a search.</div><div style="font-size:12px;margin-top:4px">${finderSource==='google'?'With an API key you get real businesses at exact coordinates. Without one, you\'ll see demo data.':finderSource==='osm'?'Free OpenStreetMap data — no key needed.':'Showing built-in demo data.'}</div></div></div>`;
+    <div id="finderresults"><div class="empty">${ic('search','#5C6E8A',40)}<div>${GOOGLE_KEY?'Pick a business type and area, then run a search.':'Add your Google API key above to search.'}</div><div style="font-size:12px;margin-top:4px">Real businesses at exact coordinates via Google Places.</div></div></div>`;
 }
 
 /* ---- Google Places API (New) — searchText. Works from the browser (CORS-enabled). ---- */
@@ -1204,19 +1196,14 @@ function placeToBusiness(p,cat){
 
 async function runFinder(){
   const cat=$('#fcat').value, area=$('#farea').value.trim(), noweb=$('#fnoweb').checked;
-  if(finderSource==='demo')return runDemoFinder(cat,area,noweb);
-  if(finderSource==='osm')return runOsmFinder(cat,area,noweb);
-  return runGoogleFinder(cat,area,noweb);
-}
-function runDemoFinder(cat,area,noweb){
-  let res=POOL.filter(p=>p.cat===cat); if(res.length===0)res=POOL.slice(0,4); if(noweb)res=res.filter(p=>!p.website); if(res.length===0)res=POOL.filter(p=>p.cat===cat);
-  state.finderResults=res; renderFinderResults(res,area,true);
-}
-async function runGoogleFinder(cat,area,noweb){
-  PLACES_KEY=($('#fkey').value||'').trim();
-  if(PLACES_KEY)saveGoogleCreds(PLACES_KEY,GOOGLE_MAP_ID); // persist so the map picks it up too
+  const typedKey=($('#fkey').value||'').trim();
+  if(typedKey)saveGoogleCreds(typedKey,GOOGLE_MAP_ID); // persist so the map picks it up too
+  PLACES_KEY=GOOGLE_KEY;
   const out=$('#finderresults'), btn=$('#findbtn');
-  if(!PLACES_KEY){ return runDemoFinder(cat,area,noweb); }
+  if(!PLACES_KEY){
+    out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>Add your Google API key above to search.</div></div>';
+    return;
+  }
   btn.disabled=true; btn.style.opacity=.6; out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>Searching Google Places…</div></div>';
   try{
     let places=await searchPlaces(`${cat} in ${area}`,noweb);
@@ -1224,107 +1211,17 @@ async function runGoogleFinder(cat,area,noweb){
     if(noweb)res=res.filter(b=>!b.website);
     livePool=res;                          // feed the map
     state.finderResults=res;
-    renderFinderResults(res,area,false);
+    renderFinderResults(res,area);
     if(state.view==='areas'&&map)drawMarkers();
   }catch(err){
     out.innerHTML=`<div class="card" style="border-color:rgba(239,68,68,.4)"><b style="color:#F87171">Places API error</b><div style="color:var(--muted);font-size:13px;margin-top:6px">${(''+err.message).replace(/</g,'&lt;')}</div><div style="color:var(--dim);font-size:12px;margin-top:8px">Check the key is valid, billing is enabled, and the <b>Places API (New)</b> is turned on. If you opened this file locally, the request still works — but some corporate networks block it.</div></div>`;
   }finally{btn.disabled=false; btn.style.opacity=1;}
 }
-/* ---- OpenStreetMap (Overpass) — free, no key, CORS-enabled. ---- */
-// Nominatim geocode: turns "Mississauga, ON" into a bounding box.
-async function geocodeArea(area){
-  const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(area);
-  const res=await fetch(url);
-  if(!res.ok)throw new Error('Geocoding failed: '+res.status+' '+res.statusText);
-  const data=await res.json();
-  if(!data.length)throw new Error(`Could not find "${area}". Try a more specific place name.`);
-  return data[0].boundingbox; // Nominatim order: [south, north, west, east] (strings)
-}
-// category -> OSM tag selectors (approximate, tune later). Each inner array is one
-// AND'd tag combo; multiple entries are OR'd together as separate nwr clauses.
-const OSM_CATEGORY_SELECTORS={
-  'Nail Salon':[[['shop','beauty'],['beauty','nails']],[['shop','nail_salon']]],
-  'HVAC':[[['craft','hvac']]],
-  'Plumbing':[[['craft','plumber']]],
-  'Restaurant':[[['amenity','restaurant']]],
-  'Auto Repair':[[['shop','car_repair']]],
-  'Dental':[[['amenity','dentist']],[['healthcare','dentist']]],
-  'Landscaping':[[['craft','gardener']],[['shop','garden_centre']]],
-  'Fitness':[[['leisure','fitness_centre']],[['leisure','sports_centre']]]
-};
-function buildOverpassQuery(cat,bb,noweb){
-  const s=bb[0], w=bb[2], n=bb[1], e=bb[3]; // Nominatim [S,N,W,E] -> Overpass (S,W,N,E)
-  const nowebFilter=noweb?'[!website][!"contact:website"]':'';
-  const selectors=OSM_CATEGORY_SELECTORS[cat]||[[['name','name']]];
-  const lines=selectors.map(tags=>{
-    const tagStr=tags.map(([k,v])=>`["${k}"="${v}"]`).join('');
-    return `  nwr${tagStr}["name"]${nowebFilter}(${s},${w},${n},${e});`;
-  }).join('\n');
-  return `[out:json][timeout:25];\n(\n${lines}\n);\nout center tags 60;`;
-}
-async function queryOverpass(query){
-  const res=await fetch('https://overpass-api.de/api/interpreter',{
-    method:'POST',
-    headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:'data='+encodeURIComponent(query)
-  });
-  if(!res.ok)throw new Error('Overpass API '+res.status+' '+res.statusText);
-  const data=await res.json();
-  return data.elements||[];
-}
-function osmToBusiness(el,cat){
-  const t=el.tags||{};
-  const lat=el.lat??(el.center&&el.center.lat), lng=el.lon??(el.center&&el.center.lon);
-  const website=t.website||t['contact:website']||null;
-  const houseNum=t['addr:housenumber']||'', streetName=t['addr:street']||'';
-  const street=((houseNum?houseNum+' ':'')+streetName).trim();
-  const city=t['addr:city']||t['addr:town']||t['addr:village']||'';
-  const province=t['addr:state']||t['addr:province']||'ON';
-  const postal=t['addr:postcode']||'';
-  const b={
-    id:'o_'+el.type.charAt(0)+el.id,
-    name:t.name||'Unknown business',
-    cat,
-    city, province, postal, street,
-    address:[street,city,province,postal].filter(Boolean).join(', '),
-    lat, lng,
-    phone:t.phone||t['contact:phone']||'',
-    website:!!website, web:website||null,
-    rating:0, reviewCount:0,                      // OSM has no ratings/reviews
-    value:1600,
-    email:t.email||t['contact:email']||null,      // usually absent
-    socials:{instagram:null,facebook:null,google:null}, // usually absent
-    reviews:[],
-    hot:false
-  };
-  b.score=scoreFor(b);
-  return b;
-}
-async function runOsmFinder(cat,area,noweb){
-  const out=$('#finderresults'), btn=$('#findbtn');
-  btn.disabled=true; btn.style.opacity=.6;
-  out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>Geocoding '+(''+area).replace(/</g,'&lt;')+'…</div></div>';
-  try{
-    const bb=await geocodeArea(area);
-    out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>Searching OpenStreetMap…</div></div>';
-    const query=buildOverpassQuery(cat,bb,noweb);
-    const elements=await queryOverpass(query);
-    let res=elements.map(el=>osmToBusiness(el,cat)).filter(b=>b.lat&&b.lng&&b.name!=='Unknown business');
-    if(noweb)res=res.filter(b=>!b.website); // belt-and-suspenders; the query already filters this
-    livePool=res;                          // feed the map
-    state.finderResults=res;
-    renderFinderResults(res,area,false,'osm');
-    if(state.view==='areas'&&map)drawMarkers();
-  }catch(err){
-    out.innerHTML=`<div class="card" style="border-color:rgba(239,68,68,.4)"><b style="color:#F87171">OpenStreetMap search error</b><div style="color:var(--muted);font-size:13px;margin-top:6px">${(''+err.message).replace(/</g,'&lt;')}</div><div style="color:var(--dim);font-size:12px;margin-top:8px">Nominatim and Overpass are free public services and occasionally rate-limit or time out — try again in a moment, or narrow the area.</div></div>`;
-  }finally{btn.disabled=false; btn.style.opacity=1;}
-}
 
-function renderFinderResults(res,area,demo,srcTag){
+function renderFinderResults(res,area){
   const out=$('#finderresults');
   if(!res.length){out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>No businesses matched.</div></div>';return;}
-  const liveLabel=srcTag==='osm'?'live · OpenStreetMap':'live · Google Places';
-  out.innerHTML=`<div style="margin:6px 2px 12px;color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px">${res.length} businesses in ${area||'your area'} ${demo?'<span class="nowww">demo data</span>':`<span class="pill" style="background:#22C55E1a;color:#22C55E"><span class="d" style="background:#22C55E"></span>${liveLabel}</span>`}</div>
+  out.innerHTML=`<div style="margin:6px 2px 12px;color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px">${res.length} businesses in ${area||'your area'} <span class="pill" style="background:#22C55E1a;color:#22C55E"><span class="d" style="background:#22C55E"></span>live · Google Places</span></div>
     <div class="tblwrap"><table class="tbl"><thead><tr><th>Business</th><th>Address</th><th>Rating</th><th>Signal</th><th>Score</th><th></th></tr></thead><tbody>
     ${res.map((p,i)=>`<tr><td><div class="biz"><b>${p.name}</b><small>${p.city||''} · ${p.phone||'no phone'}</small></div></td>
       <td class="nowrap" style="font-size:12px;color:var(--muted)">${p.street||'—'}</td>

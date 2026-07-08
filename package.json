@@ -1,7 +1,7 @@
 {
   "name": "leadgrid",
   "version": "1.0.0",
-  "description": "A single-file B2B lead-generation prototype: interactive MapLibre + CARTO map, CRM, Lead Finder (Google Places), routes, calendar, reps, and an AI outreach drawer. Everything lives in `index.html` (HTML + CSS + JS, dependencies loaded from CDN). No build step required.",
+  "description": "A single-file B2B lead-generation prototype: interactive Google Maps view, CRM, Lead Finder (Google Places), routes, calendar, reps, and an AI outreach drawer. Everything lives in `index.html` (HTML + CSS + JS, dependencies loaded from CDN). No build step required.",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
