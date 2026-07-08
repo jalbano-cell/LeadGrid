@@ -663,8 +663,18 @@ function enrich(b){
 LEADS.forEach(enrich); POOL.forEach(enrich);
 const addedProspects=new Set();
 let livePool=[];              // businesses fetched live from Google Places or OpenStreetMap
-let PLACES_KEY='';            // set from the Lead Finder field (or hardcode for your own deploy)
+let PLACES_KEY='';            // kept in sync with GOOGLE_KEY below — Places search reads this
 let finderSource='osm';       // 'google' | 'osm' | 'demo' — Lead Finder data source
+let GOOGLE_KEY=localStorage.getItem('lg_google_key')||'';       // shared Google API key (map + search)
+let GOOGLE_MAP_ID=localStorage.getItem('lg_google_mapid')||'';  // optional; falls back to DEMO_MAP_ID
+PLACES_KEY=GOOGLE_KEY;
+function saveGoogleCreds(key,mapId){
+  GOOGLE_KEY=(key||'').trim();
+  GOOGLE_MAP_ID=(mapId||'').trim();
+  PLACES_KEY=GOOGLE_KEY;
+  if(GOOGLE_KEY)localStorage.setItem('lg_google_key',GOOGLE_KEY);else localStorage.removeItem('lg_google_key');
+  if(GOOGLE_MAP_ID)localStorage.setItem('lg_google_mapid',GOOGLE_MAP_ID);else localStorage.removeItem('lg_google_mapid');
+}
 const prospectById=id=>POOL.find(p=>p.id===id)||livePool.find(p=>p.id===id);
 
 const EVENTS=[
@@ -921,8 +931,59 @@ function deleteLead(id){
 function setStage(id,stage){leadById(id).stage=stage;openLead(id);render(state.view);}
 function addToRoute(id){closeDrawer();const l=leadById(id);state.rep=l.rep;go('routes');setTimeout(()=>alert(l.name+' added to '+repById(l.rep).name+"'s route"),120);}
 
+/* ========== GOOGLE MAPS LOADER ========== */
+let gmapsReady=false, gmapsLoading=false, gmapsQueue=[], googleAuthError=null;
+function ensureGoogleMaps(cb){
+  if(gmapsReady){cb();return;}
+  gmapsQueue.push(cb);
+  if(gmapsLoading)return;
+  gmapsLoading=true;
+  window.onGoogleMapsReady=()=>{
+    gmapsReady=true; gmapsLoading=false; googleAuthError=null;
+    const q=gmapsQueue; gmapsQueue=[]; q.forEach(fn=>fn());
+  };
+  window.gm_authFailure=()=>{
+    gmapsReady=false; gmapsLoading=false; gmapsQueue=[];
+    googleAuthError='Google rejected this API key (invalid, unbilled, or missing the Maps JavaScript API / Places API). Check your key in Cloud Console and try again.';
+    if(state.view==='routes')renderRoutes(); else if(state.view==='areas')renderAreas();
+  };
+  const s=document.createElement('script');
+  s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GOOGLE_KEY)+'&libraries=marker&loading=async&callback=onGoogleMapsReady';
+  s.onerror=()=>{
+    gmapsLoading=false; gmapsQueue=[];
+    googleAuthError='Could not load the Google Maps script — check your internet connection.';
+    if(state.view==='routes')renderRoutes(); else if(state.view==='areas')renderAreas();
+  };
+  document.head.appendChild(s);
+}
+function nudgeMap(m){
+  if(!m)return;
+  const c=m.getCenter();
+  google.maps.event.trigger(m,'resize');
+  if(c)m.setCenter(c);
+}
+function googleGateHTML(){
+  const err=googleAuthError?`<div class="card" style="border-color:rgba(239,68,68,.4);margin-bottom:14px;text-align:left"><b style="color:#F87171">Google Maps error</b><div style="color:var(--muted);font-size:13px;margin-top:6px">${googleAuthError}</div></div>`:'';
+  return `<div class="empty" style="max-width:400px;margin:40px auto 0">
+    ${err}
+    ${ic('map','#5C6E8A',40)}
+    <div style="font-weight:600;color:var(--text);margin:10px 0 4px">Connect Google Maps</div>
+    <div style="font-size:12.5px;margin-bottom:16px">Paste a Google API key (Maps JavaScript API + Places API enabled) to load the map.</div>
+    <input id="ggkey" type="password" placeholder="Google API key" value="${GOOGLE_KEY?GOOGLE_KEY.replace(/"/g,'&quot;'):''}" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:8px">
+    <input id="ggmapid" type="text" placeholder="Map ID (optional — uses Google's demo Map ID if blank)" value="${GOOGLE_MAP_ID?GOOGLE_MAP_ID.replace(/"/g,'&quot;'):''}" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:10px">
+    <button class="btn" style="width:100%;justify-content:center" onclick="submitGoogleCreds()">${ic('check','#fff',15)} Save &amp; load map</button>
+  </div>`;
+}
+function submitGoogleCreds(){
+  const key=($('#ggkey').value||'').trim(), mapId=($('#ggmapid').value||'').trim();
+  if(!key)return;
+  saveGoogleCreds(key,mapId);
+  googleAuthError=null;
+  if(state.view==='routes')renderRoutes(); else renderAreas();
+}
+
 /* ========== MAP (home) ========== */
-let map,mapFilter='all',mapSource='all';
+let map,mapFilter='all',mapSource='all',mapColorScheme='light';
 function renderAreas(){
   $('#v-areas').innerHTML=`<div class="maplayout"><div id="map"></div>
     <div class="mappanel" id="mappanel">
@@ -932,9 +993,8 @@ function renderAreas(){
         <span class="lg"><i class="ring"></i> Prospect — tap to add</span>
         <span class="lg">🔥 hot</span>
         <div class="baseseg" id="baseseg">
-          <button data-base="voyager" class="${baseStyle==='voyager'?'on':''}" onclick="toggleBase('voyager')">Voyager</button>
-          <button data-base="positron" class="${baseStyle==='positron'?'on':''}" onclick="toggleBase('positron')">Positron</button>
-          <button data-base="dark" class="${baseStyle==='dark'?'on':''}" onclick="toggleBase('dark')">Dark</button>
+          <button data-scheme="light" class="${mapColorScheme==='light'?'on':''}" onclick="toggleColorScheme('light')">Light</button>
+          <button data-scheme="dark" class="${mapColorScheme==='dark'?'on':''}" onclick="toggleColorScheme('dark')">Dark</button>
         </div>
       </div>
       <div class="filterrow" id="srcrow">
@@ -961,25 +1021,26 @@ function toggleBase(mode){
   document.querySelectorAll('#baseseg button').forEach(b=>b.classList.toggle('on',b.dataset.base===mode));
   if(map)map.setStyle(curStyle()); // HTML markers persist across setStyle
 }
-function initMap(retries){
-  const el=$('#map'); if(!el) return;
-  if(typeof maplibregl==='undefined'){
-    if((retries||0)<8){return setTimeout(()=>initMap((retries||0)+1),400);} // wait for CDN/fallback to load
-    el.innerHTML='<div style="padding:24px;color:var(--muted);font-size:13px">The map library couldn’t load in this preview (no network). Open the file in a browser or deploy it to see the live map.</div>';return;
-  }
-  if(map){map.remove();map=null;}
-  mapMarkers=[];
-  map=new maplibregl.Map({container:el,style:curStyle(),center:[-79.45,43.68],zoom:9.4,attributionControl:true});
-  map.addControl(new maplibregl.NavigationControl({showCompass:true}),'top-left');
-  let fellBack=false;
-  map.on('error',e=>{ // if the dark vector style can't load, fall back to a free no-key style
-    if(fellBack)return; const msg=(e&&e.error&&e.error.message)||'';
-    if(/style|sprite|glyph|tiles|Failed to fetch/i.test(msg)){fellBack=true;try{map.setStyle(FALLBACK_STYLE);}catch(_){} }
-  });
-  map.on('load',()=>{drawMarkers();[60,300,800].forEach(t=>setTimeout(()=>map&&map.resize(),t));});
-  map.on('style.load',()=>{if(fellBack)drawMarkers();});
+function toggleColorScheme(mode){ // main map only — routes map still on toggleBase()/CARTO until Step 2
+  mapColorScheme=mode;
+  document.querySelectorAll('#baseseg button').forEach(b=>b.classList.toggle('on',b.dataset.scheme===mode));
+  if(map)map.setOptions({colorScheme:mode==='dark'?google.maps.ColorScheme.DARK:google.maps.ColorScheme.LIGHT});
 }
-function clearMarkers(){mapMarkers.forEach(m=>m.remove());mapMarkers=[];}
+function initMap(){
+  const el=$('#map'); if(!el) return;
+  if(!GOOGLE_KEY){el.innerHTML=googleGateHTML();return;}
+  if(googleAuthError){el.innerHTML=googleGateHTML();return;}
+  if(!gmapsReady){ensureGoogleMaps(initMap);return;}
+  map=new google.maps.Map(el,{
+    center:{lat:43.68,lng:-79.45}, zoom:9.4,
+    mapId:GOOGLE_MAP_ID||'DEMO_MAP_ID',
+    colorScheme:mapColorScheme==='dark'?google.maps.ColorScheme.DARK:google.maps.ColorScheme.LIGHT,
+    disableDefaultUI:true, clickableIcons:false
+  });
+  mapMarkers=[];
+  drawMarkers();
+}
+function clearMarkers(){mapMarkers.forEach(m=>{m.map=null;});mapMarkers=[];}
 function mapBusinesses(){
   const catOk=b=>mapFilter==='all'||b.cat===mapFilter;
   const source=livePool.length?livePool:POOL; // live Google Places results take over once fetched
@@ -1002,9 +1063,9 @@ function drawMarkers(){
     }else{
       el.innerHTML=`<div class="pin"><span class="pdot"></span></div>`;
     }
-    el.addEventListener('click',ev=>{ev.stopPropagation();showBizPanel(kind,b.id);});
-    const m=new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([b.lng,b.lat]).addTo(map);
-    mapMarkers.push(m);
+    const marker=new google.maps.marker.AdvancedMarkerElement({map,position:{lat:b.lat,lng:b.lng},content:el});
+    marker.addListener('gmp-click',()=>showBizPanel(kind,b.id));
+    mapMarkers.push(marker);
   });
   const nLead=items.filter(i=>i.kind==='lead').length, nPros=items.filter(i=>i.kind==='prospect').length;
   $('#mapcount').textContent=`${items.length} shown · ${nLead} in CRM · ${nPros} prospects`;
@@ -1024,7 +1085,7 @@ function socialChip(icon,label,val,href){
 function showBizPanel(kind,id){
   const b=kind==='lead'?leadById(id):prospectById(id);
   if(!b)return;
-  map.flyTo({center:[b.lng,b.lat],zoom:14,duration:600});
+  map.panTo({lat:b.lat,lng:b.lng}); map.setZoom(14);
   const inCRM=kind==='lead';
   const so=b.socials||{};
   $('#mdetail').innerHTML=`
@@ -1063,9 +1124,9 @@ function showBizPanel(kind,id){
     </div>`;
   $('#mappanel').classList.add('detail');
   const ml=document.querySelector('.maplayout');if(ml)ml.classList.add('detailmode');
-  setTimeout(()=>map&&map.resize(),260);
+  setTimeout(()=>nudgeMap(map),260);
 }
-function closeBizPanel(){const p=$('#mappanel');if(p)p.classList.remove('detail');const ml=document.querySelector('.maplayout');if(ml)ml.classList.remove('detailmode');setTimeout(()=>map&&map.resize(),260);}
+function closeBizPanel(){const p=$('#mappanel');if(p)p.classList.remove('detail');const ml=document.querySelector('.maplayout');if(ml)ml.classList.remove('detailmode');setTimeout(()=>nudgeMap(map),260);}
 function reEnrich(kind,id){
   const note=document.querySelector('#mdetail .enrichnote');
   if(note)note.innerHTML=ic('spark','#A855F7',12)+' Re-scraping site &amp; directories…';
@@ -1099,7 +1160,7 @@ function renderFinder(){
       ${finderSource==='google'?`
       <div class="keyrow" style="margin-top:12px">
         <div style="flex:1;min-width:220px"><div class="flbl">Google Places API key</div>
-          <input id="fkey" type="password" placeholder="Paste key to search live · leave blank for demo data" value="${PLACES_KEY?PLACES_KEY:''}" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px"></div>
+          <input id="fkey" type="password" placeholder="Paste key to search live · leave blank for demo data" value="${GOOGLE_KEY?GOOGLE_KEY:''}" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px"></div>
         <div class="keynote">${ic('link','#5C6E8A',12)} Stays in your browser. Restrict the key by HTTP referrer, or use the server route (see chat) for production.</div>
       </div>`:''}
       ${finderSource==='osm'?`<div class="keynote" style="margin-top:12px">${ic('link','#5C6E8A',12)} Free, no API key — queries OpenStreetMap via the Overpass API. No ratings/reviews and usually no email.</div>`:''}
@@ -1174,6 +1235,7 @@ function runDemoFinder(cat,area,noweb){
 }
 async function runGoogleFinder(cat,area,noweb){
   PLACES_KEY=($('#fkey').value||'').trim();
+  if(PLACES_KEY)saveGoogleCreds(PLACES_KEY,GOOGLE_MAP_ID); // persist so the map picks it up too
   const out=$('#finderresults'), btn=$('#findbtn');
   if(!PLACES_KEY){ return runDemoFinder(cat,area,noweb); }
   btn.disabled=true; btn.style.opacity=.6; out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>Searching Google Places…</div></div>';
@@ -1455,7 +1517,7 @@ $('#repfilter').addEventListener('change',e=>{state.rep=e.target.value;render(st
 $('#globalsearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.toLowerCase();const hit=LEADS.find(l=>l.name.toLowerCase().includes(q));if(hit)openLead(hit.id);}});
 const style=document.createElement('style');style.textContent='@keyframes pulse{0%{box-shadow:0 0 0 3px currentColor}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 3px transparent}}';document.head.appendChild(style);
 // fill static icon placeholders
-let _rz;window.addEventListener('resize',()=>{clearTimeout(_rz);_rz=setTimeout(()=>{map&&map.resize();routemap&&routemap.resize();},200);});
+let _rz;window.addEventListener('resize',()=>{clearTimeout(_rz);_rz=setTimeout(()=>{map&&nudgeMap(map);routemap&&routemap.resize();},200);});
 document.querySelectorAll('[data-ic]').forEach(el=>{el.outerHTML=ic(el.dataset.ic,el.dataset.c,el.dataset.s?+el.dataset.s:undefined);});
 go('areas');
 </script>
