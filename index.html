@@ -672,15 +672,12 @@ function enrich(b){
 LEADS.forEach(enrich); POOL.forEach(enrich);
 const addedProspects=new Set();
 let livePool=[];              // businesses fetched live from Google Places
-let PLACES_KEY='';            // kept in sync with GOOGLE_KEY below — Places search reads this
 const envVal=v=>(v&&!v.startsWith('%'))?v:'';  // Vite leaves %KEY% untouched if the env var isn't set
-let GOOGLE_KEY=localStorage.getItem('lg_google_key')||envVal('%VITE_GOOGLE_API_KEY%');       // shared Google API key (map + search); falls back to .env.local
+let GOOGLE_KEY=localStorage.getItem('lg_google_key')||envVal('%VITE_GOOGLE_API_KEY%');       // Maps JS key — client-side by necessity, protected by HTTP referrer restriction
 let GOOGLE_MAP_ID=localStorage.getItem('lg_google_mapid')||envVal('%VITE_GOOGLE_MAP_ID%');  // optional; falls back to DEMO_MAP_ID or .env.local
-PLACES_KEY=GOOGLE_KEY;
 function saveGoogleCreds(key,mapId){
   GOOGLE_KEY=(key||'').trim();
   GOOGLE_MAP_ID=(mapId||'').trim();
-  PLACES_KEY=GOOGLE_KEY;
   if(GOOGLE_KEY)localStorage.setItem('lg_google_key',GOOGLE_KEY);else localStorage.removeItem('lg_google_key');
   if(GOOGLE_MAP_ID)localStorage.setItem('lg_google_mapid',GOOGLE_MAP_ID);else localStorage.removeItem('lg_google_mapid');
 }
@@ -1086,7 +1083,6 @@ async function searchMapArea(){
   const btn=$('#mapsearchbtn'), status=$('#mapsearchstatus');
   btn.disabled=true; btn.style.opacity=.6;
   status.textContent=`Searching "${query}" within ${radiusKm} km of where you're looking…`;
-  PLACES_KEY=GOOGLE_KEY;
   try{
     const places=await searchPlaces(query,{lat,lng,radius});
     const seen=new Set(livePool.map(p=>p.id));
@@ -1235,21 +1231,17 @@ function renderFinder(){
 }
 
 /* ---- Google Places API (New) — searchText. Works from the browser (CORS-enabled). ---- */
+// Routed through our own /api/places-search rather than calling Google directly — keeps the
+// Places-capable key server-side only, unlike the Maps JavaScript API key (unavoidably client-side
+// since it loads as a <script> tag, protected only by its HTTP referrer restriction instead).
 async function searchPlaces(textQuery,near){
-  const body={textQuery,maxResultCount:20,regionCode:'CA'};
-  if(near)body.locationBias={circle:{center:{latitude:near.lat,longitude:near.lng},radius:near.radius}};
-  const res=await fetch('https://places.googleapis.com/v1/places:searchText',{
+  const res=await fetch('/api/places-search',{
     method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'X-Goog-Api-Key':PLACES_KEY,
-      'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location,places.rating,places.userRatingCount,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.types'
-    },
-    body:JSON.stringify(body)
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({textQuery,near})
   });
-  if(!res.ok){let msg=res.status+' '+res.statusText;try{const e=await res.json();msg=(e.error&&e.error.message)||msg;}catch(_){}
-    throw new Error(msg);}
-  const data=await res.json();
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.error||(res.status+' '+res.statusText));
   return data.places||[];
 }
 function comp(p,type){const c=(p.addressComponents||[]).find(x=>(x.types||[]).includes(type));return c?(c.shortText||c.longText||''):'';}
@@ -1285,9 +1277,8 @@ function placeToBusiness(p,queryCat){
 
 async function runFinder(){
   const area=$('#farea').value.trim(), noweb=$('#fnoweb').checked;
-  PLACES_KEY=GOOGLE_KEY;
   const out=$('#finderresults'), btn=$('#findbtn');
-  if(!PLACES_KEY){
+  if(!GOOGLE_KEY){
     out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>No Google API key configured — set VITE_GOOGLE_API_KEY in .env.local, or add one via Connect Google Maps on the Map tab.</div></div>';
     return;
   }

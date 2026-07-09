@@ -1,11 +1,22 @@
 import { defineConfig, loadEnv } from 'vite';
 import { fetchSocialsFor } from './api/lib/extractSocials.js';
+import { searchPlacesText } from './api/lib/placesSearch.js';
 
-// Mirrors api/socials.js (the Vercel serverless function used in production) so
-// `npm run dev` has a working /api/socials endpoint too, without needing `vercel dev`.
-function socialsApiPlugin() {
+function readJsonBody(req) {
+  return new Promise((resolve) => {
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; });
+    req.on('end', () => {
+      try { resolve(JSON.parse(raw || '{}')); } catch { resolve({}); }
+    });
+  });
+}
+
+// Mirrors api/socials.js and api/places-search.js (the Vercel serverless functions used in
+// production) so `npm run dev` has working /api/* endpoints too, without needing `vercel dev`.
+function backendApiPlugin() {
   return {
-    name: 'leadgrid-socials-api',
+    name: 'leadgrid-backend-api',
     configureServer(server) {
       server.middlewares.use('/api/socials', async (req, res) => {
         const params = new URL(req.url, 'http://localhost').searchParams;
@@ -16,17 +27,38 @@ function socialsApiPlugin() {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(result));
       });
+
+      server.middlewares.use('/api/places-search', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'POST only' }));
+          return;
+        }
+        const body = await readJsonBody(req);
+        res.setHeader('Content-Type', 'application/json');
+        try {
+          const places = await searchPlacesText(body);
+          res.end(JSON.stringify({ places }));
+        } catch (err) {
+          res.statusCode = err.status || 500;
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
     },
   };
 }
 
 export default defineConfig(({ mode }) => {
-  // TAVILY_API_KEY has no VITE_ prefix (it's server-only, must never reach the browser bundle),
-  // so it needs an explicit loadEnv() to land in process.env for our Node-side middleware to read.
+  // Node's own process.env isn't populated from .env.local by Vite automatically for anything
+  // our server-side middleware reads — VITE_-prefixed vars only auto-reach import.meta.env in the
+  // client bundle, and non-prefixed ones (deliberately server-only, must never reach the browser)
+  // aren't auto-exposed anywhere. Both need an explicit loadEnv() copy into process.env here.
   const env = loadEnv(mode, process.cwd(), '');
   if (env.TAVILY_API_KEY) process.env.TAVILY_API_KEY = env.TAVILY_API_KEY;
+  if (env.GOOGLE_PLACES_API_KEY) process.env.GOOGLE_PLACES_API_KEY = env.GOOGLE_PLACES_API_KEY;
+  if (env.VITE_GOOGLE_API_KEY) process.env.VITE_GOOGLE_API_KEY = env.VITE_GOOGLE_API_KEY;
 
   return {
-    plugins: [socialsApiPlugin()],
+    plugins: [backendApiPlugin()],
   };
 });
