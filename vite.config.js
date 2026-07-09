@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import { fetchSocialsFor } from './api/lib/extractSocials.js';
 import { searchPlacesText } from './api/lib/placesSearch.js';
+import { geocodeAddress } from './api/lib/geocode.js';
 
 function readJsonBody(req) {
   return new Promise((resolve) => {
@@ -39,6 +40,18 @@ function backendApiPlugin() {
         try {
           const places = await searchPlacesText(body);
           res.end(JSON.stringify({ places }));
+        } catch (err) {
+          res.statusCode = err.status || 500;
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+
+      server.middlewares.use('/api/geocode', async (req, res) => {
+        const params = new URL(req.url, 'http://localhost').searchParams;
+        res.setHeader('Content-Type', 'application/json');
+        try {
+          const result = await geocodeAddress(params.get('address') || '');
+          res.end(JSON.stringify(result));
         } catch (err) {
           res.statusCode = err.status || 500;
           res.end(JSON.stringify({ error: err.message }));

@@ -154,20 +154,21 @@
   .kcard .kv{font-family:var(--mono);font-size:11px;color:var(--blue-2);margin-top:5px;display:block}
 
   /* ---- Map view ---- */
-  .maplayout{display:grid;grid-template-columns:1fr 320px;height:100%}
+  .maplayout{position:relative;height:100%}
   #map{height:100%;width:100%;min-height:340px;background:var(--ink)}
-  .mappanel{border-left:1px solid var(--line);background:var(--panel);overflow:auto;display:flex;flex-direction:column}
-  .mappanel .ph{padding:16px 18px;border-bottom:1px solid var(--line)}
-  .mappanel .ph .t{font-family:var(--disp);font-size:16px;font-weight:600}
-  .mappanel .ph .s{color:var(--muted);font-size:12px;margin-top:3px}
-  .filterrow{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;gap:6px;flex-wrap:wrap}
-  .mlist{flex:1}
-  .mrow{display:flex;gap:11px;padding:12px 16px;border-bottom:1px solid var(--line-soft);cursor:pointer;align-items:center}
-  .mrow:hover{background:var(--panel-2)}
-  .mrow .mdot{width:10px;height:10px;border-radius:50%;flex:none}
-  .mrow .mi{flex:1;min-width:0}
-  .mrow .mi b{font-size:13px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .mrow .mi small{color:var(--dim);font-size:11px}
+  .mapsearch-panel{position:absolute;right:14px;top:14px;z-index:2;width:280px;max-height:calc(100% - 28px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:flex;flex-direction:column;padding:16px;gap:10px}
+  .mapsearch-panel .ph{margin-bottom:2px}
+  .mapsearch-panel .ph .t{font-family:var(--disp);font-size:15px;font-weight:600}
+  .mapsearch-panel .ph .s{color:var(--muted);font-size:11.5px;margin-top:3px;line-height:1.4}
+  .msf-lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600;margin-bottom:5px}
+  .mapsearch-panel input[type=text]{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 10px;color:var(--text);font-size:12.5px}
+  .msf-row{display:flex;align-items:center;gap:7px}
+  .msf-row input[type=number]{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 10px;color:var(--text);font-size:12.5px}
+  .msf-row .msf-unit{font-size:11.5px;color:var(--muted);flex:none}
+  .msf-check{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);cursor:pointer}
+  .mapsearch-panel .btn{width:100%;justify-content:center;padding:9px 12px;font-size:12.5px}
+  .msf-status{font-size:11px;color:var(--muted);line-height:1.4}
+  .mapsearch-panel .baseseg{align-self:flex-start}
   .biz-marker{cursor:pointer}
   .pin{position:relative;display:grid;place-items:center;width:20px;height:20px}
   .pin .dot{border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);position:relative;z-index:2}
@@ -181,20 +182,12 @@
   .pop .pacts button{flex:1;font-size:11.5px;padding:6px;border-radius:7px;background:var(--blue);color:#fff;font-weight:600}
   .pop .pacts button.g{background:var(--panel-3);border:1px solid var(--line)}
 
-  /* map legend + source toggle */
-  .maplegend{display:flex;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted);flex-wrap:wrap}
-  .maplegend .lg{display:flex;align-items:center;gap:6px}
-  .maplegend .lg i{width:11px;height:11px;border-radius:50%;display:inline-block}
-  .maplegend .lg i.ring{background:transparent;border:2px dashed #7C8AA0}
-  .baseseg{margin-left:auto;display:flex;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:2px}
-  .baseseg button{padding:4px 12px;border-radius:6px;font-size:11px;font-weight:600;color:var(--muted)}
+  /* map base style (light/dark) toggle */
+  .baseseg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:2px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+  .baseseg button{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600;color:var(--muted)}
   .baseseg button.on{background:var(--blue);color:#fff}
 
-  /* business overview detail */
-  .bizdetail{display:none;flex-direction:column;flex:1;overflow:auto}
-  .bizdetail.show{display:flex}
-  .bd-back{display:flex;align-items:center;gap:7px;padding:12px 16px;color:var(--blue-2);font-size:12.5px;font-weight:600;border-bottom:1px solid var(--line-soft);cursor:pointer}
-  .bd-back:hover{background:var(--panel-2)}
+  /* business overview detail — reused inside the map popup card */
   .bd-hero{padding:16px 18px 14px;border-bottom:1px solid var(--line)}
   .bd-hero .bd-cat{font-size:11px;color:var(--blue-2);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
   .bd-hero h2{font-family:var(--disp);font-size:19px;font-weight:600;margin:5px 0 8px;letter-spacing:-.02em;line-height:1.15}
@@ -215,11 +208,21 @@
   .social-chip:hover{border-color:var(--blue)}
   .social-chip.off{opacity:.45;font-style:italic}
   .social-chip svg{color:var(--blue-2)}
-  .bd-cta{padding:16px 18px;margin-top:auto;background:var(--panel);border-top:1px solid var(--line)}
+  .bd-cta{padding:16px 18px;background:var(--panel);border-top:1px solid var(--line)}
   .bd-cta .btn{width:100%;justify-content:center}
   .incrm{display:flex;align-items:center;gap:8px;justify-content:center;color:var(--won);font-weight:600;font-size:13px;padding:11px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:9px}
-  .mappanel.detail .ph,.mappanel.detail .maplegend,.mappanel.detail .filterrow,.mappanel.detail .mlist{display:none}
-  .mappanel.detail .bizdetail{display:flex}
+
+  /* business popup card — content of the map's InfoWindow, opened anchored above a pin */
+  .biz-popup{width:320px;max-width:80vw;background:var(--panel);border-radius:14px;overflow:hidden;font-family:var(--sans)}
+  .biz-popup .bd-hero,.biz-popup .bd-section,.biz-popup .bd-cta{padding-left:16px;padding-right:16px}
+  /* Google's default InfoWindow chrome (white bubble, padding, shadow) fights the app's dark
+     card styling, so strip it back to a transparent shell and let .biz-popup supply the look. */
+  .gm-style-iw-c{background:transparent!important;padding:0!important;box-shadow:none!important;border-radius:14px!important;max-width:none!important}
+  .gm-style-iw-d{overflow:auto!important;padding:0!important;max-width:none!important}
+  .gm-style-iw-t::after{background:var(--panel)!important;box-shadow:none!important}
+  .gm-style-iw-tc::after{background:var(--panel)!important}
+  .gm-ui-hover-effect{top:6px!important;right:6px!important;opacity:.8}
+  .gm-ui-hover-effect span{background-color:var(--muted)!important}
   .srctag{float:right;font-size:9.5px;font-weight:600;letter-spacing:.02em;padding:2px 7px;border-radius:20px;display:inline-flex;align-items:center;gap:4px;text-transform:none}
   .srctag.places{background:rgba(77,159,255,.12);color:var(--blue-2)}
   .srctag.enriched{background:rgba(168,85,247,.14);color:#C084FC}
@@ -433,13 +436,9 @@
     .kpis{gap:10px}
     .kpi{padding:13px 14px}
     .kpi .val{font-size:22px}
-    /* map: stack, map on top + panel below (in-flow, bounded by grid row) */
-    .maplayout{grid-template-columns:1fr;display:flex;flex-direction:column;height:100%}
-    #map{flex:1 1 46%;min-height:220px}
-    .mappanel{flex:1 1 54%;border-left:none;border-top:1px solid var(--line);min-height:0}
-    .maplayout.detailmode #map{flex:0 0 34vh;min-height:0}
-    .maplayout.detailmode .mappanel{flex:1 1 auto}
-    .mlist{-webkit-overflow-scrolling:touch}
+    /* map: floating search card becomes a full-width bar pinned to the bottom instead */
+    .mapsearch-panel{left:14px;right:14px;width:auto;max-height:60vh}
+    .biz-popup{width:78vw}
     /* drawer + AI as full-width sheets */
     .drawer{width:100%}
     .ai-panel{left:0;right:0;bottom:0;width:auto;height:82vh;max-height:82vh;border-radius:20px 20px 0 0}
@@ -973,40 +972,38 @@ function submitGoogleCreds(containerId){
 }
 
 /* ========== MAP (home) ========== */
-let map,mapFilter='all',mapSource='all',mapColorScheme='light',searchRadiusCircle=null;
+let map,mapColorScheme=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light',searchRadiusCircle=null,mapNoWebOnly=false;
 function renderAreas(){
   $('#v-areas').innerHTML=`<div class="maplayout"><div id="map"></div>
-    <div class="mappanel" id="mappanel">
-      <div class="ph"><div class="t">Businesses on the map</div><div class="s" id="mapcount"></div></div>
-      <div class="mapsearch" style="padding:10px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <input id="mapSearchCat" type="text" placeholder="e.g. plumber, coffee shop, gym" onkeydown="if(event.key==='Enter')searchMapArea()" style="flex:1;min-width:150px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--text);font-size:12px">
-        <div style="display:flex;align-items:center;gap:5px">
-          <input id="mapSearchRadius" type="number" value="5" min="0.1" max="50" step="0.5" style="width:64px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--text);font-size:12px">
-          <span style="font-size:12px;color:var(--muted)">km</span>
+    <div class="mapsearch-panel" id="mapsearchpanel">
+      <div class="ph"><div class="t">Find businesses</div><div class="s">Search Google Places for an area — pans the map there for you</div></div>
+      <div>
+        <div class="msf-lbl">Business type</div>
+        <input id="mapSearchCat" type="text" onkeydown="if(event.key==='Enter')searchMapArea()">
+      </div>
+      <div>
+        <div class="msf-lbl">Location <span style="text-transform:none;font-weight:400;opacity:.7">— optional</span></div>
+        <input id="mapSearchLoc" type="text" onkeydown="if(event.key==='Enter')searchMapArea()">
+      </div>
+      <div>
+        <div class="msf-lbl">Radius</div>
+        <div class="msf-row">
+          <input id="mapSearchRadius" type="number" value="5" min="0.1" max="50" step="0.5">
+          <span class="msf-unit">km</span>
         </div>
-        <button class="btn" style="padding:7px 12px;font-size:12px" onclick="searchMapArea()" id="mapsearchbtn">${ic('search','#fff',14)} Search this area</button>
-        <div id="mapsearchstatus" style="flex-basis:100%;font-size:11px;color:var(--muted)"></div>
       </div>
-      <div class="maplegend">
-        <span class="lg"><i style="background:#22C55E"></i> In CRM</span>
-        <span class="lg"><i class="ring"></i> Prospect — tap to add</span>
-        <span class="lg">🔥 hot</span>
-        <div class="baseseg" id="baseseg" title="${GOOGLE_MAP_ID?'':'Dark mode needs a custom Map ID — Google\'s demo Map ID is light-only. Add one via Connect Google Maps.'}">
-          <button data-scheme="light" class="${mapColorScheme==='light'?'on':''}" onclick="toggleColorScheme('light')">Light</button>
-          <button data-scheme="dark" class="${mapColorScheme==='dark'?'on':''}" onclick="toggleColorScheme('dark')">Dark</button>
-        </div>
-        ${GOOGLE_MAP_ID?'':'<small style="color:var(--dim);flex-basis:100%">Dark needs a custom Map ID (see Connect Google Maps)</small>'}
+      <label class="msf-check"><input type="checkbox" id="mapNoWeb" onchange="mapNoWebOnly=this.checked"${mapNoWebOnly?' checked':''}> No website only</label>
+      <button class="btn" onclick="searchMapArea()" id="mapsearchbtn">${ic('search','#fff',14)} Search this area</button>
+      <div id="mapsearchstatus" class="msf-status"></div>
+      <div class="baseseg" id="baseseg" title="${GOOGLE_MAP_ID?'':'Dark mode needs a custom Map ID — Google\'s demo Map ID is light-only. Add one via Connect Google Maps.'}">
+        <button data-scheme="light" class="${mapColorScheme==='light'?'on':''}" onclick="toggleColorScheme('light')">Light</button>
+        <button data-scheme="dark" class="${mapColorScheme==='dark'?'on':''}" onclick="toggleColorScheme('dark')">Dark</button>
       </div>
-      <div class="filterrow" id="srcrow">
-        ${[['all','All'],['crm','In CRM'],['prospect','Prospects']].map(([k,l])=>`<button class="chip ${mapSource===k?'on':''}" onclick="mapSource='${k}';drawMarkers()">${l}</button>`).join('')}
-      </div>
-      <div class="filterrow">${['all',...CATS,'Other'].map(c=>`<button class="chip cat-chip ${mapFilter===c?'on':''}" onclick="mapFilter='${c}';drawMarkers()">${c==='all'?'All types':c}</button>`).join('')}</div>
-      <div class="mlist" id="mlist"></div>
-      <div class="bizdetail" id="mdetail"></div>
-    </div></div>`;
+    </div>
+  </div>`;
   setTimeout(initMap,60);
 }
-let mapMarkers=[];
+let mapMarkers=[]; // {marker,kind,id} — kept so a pin's popup can be re-opened/anchored by id
 function toggleColorScheme(mode){ // shared by both the main map and routes map
   mapColorScheme=mode;
   document.querySelectorAll('#baseseg button').forEach(b=>b.classList.toggle('on',b.dataset.scheme===mode));
@@ -1029,12 +1026,11 @@ function initMap(keepView){
   mapMarkers=[];
   drawMarkers();
 }
-function clearMarkers(){mapMarkers.forEach(m=>{m.map=null;});mapMarkers=[];}
+function clearMarkers(){mapMarkers.forEach(({marker})=>{marker.map=null;});mapMarkers=[];}
 function mapBusinesses(){
-  const catOk=b=>mapFilter==='all'||b.cat===mapFilter;
   const source=livePool.length?livePool:POOL; // live Google Places results take over once fetched
-  const leads=(mapSource==='prospect'?[]:visibleLeads().filter(catOk)).map(l=>({kind:'lead',b:l}));
-  const pros=(mapSource==='crm'?[]:source.filter(p=>!addedProspects.has(p.id)).filter(catOk)).map(p=>({kind:'prospect',b:p}));
+  const leads=visibleLeads().map(l=>({kind:'lead',b:l}));
+  const pros=source.filter(p=>!addedProspects.has(p.id)).map(p=>({kind:'prospect',b:p}));
   return [...leads,...pros];
 }
 function drawMarkers(){
@@ -1042,8 +1038,6 @@ function drawMarkers(){
   closeBizPanel();
   clearMarkers();
   const items=mapBusinesses();
-  document.querySelectorAll('#srcrow .chip').forEach((c,i)=>c.classList.toggle('on',['all','crm','prospect'][i]===mapSource));
-  document.querySelectorAll('.cat-chip').forEach(c=>c.classList.toggle('on',c.textContent===(mapFilter==='all'?'All types':mapFilter)));
   items.forEach(({kind,b})=>{
     const el=document.createElement('div'); el.className='biz-marker';
     if(kind==='lead'){
@@ -1053,15 +1047,9 @@ function drawMarkers(){
       el.innerHTML=`<div class="pin"><span class="pdot"></span></div>`;
     }
     const marker=new google.maps.marker.AdvancedMarkerElement({map,position:{lat:b.lat,lng:b.lng},content:el});
-    marker.addListener('gmp-click',()=>showBizPanel(kind,b.id));
-    mapMarkers.push(marker);
+    marker.addListener('gmp-click',()=>showBizPanel(kind,b.id,marker));
+    mapMarkers.push({marker,kind,id:b.id});
   });
-  const nLead=items.filter(i=>i.kind==='lead').length, nPros=items.filter(i=>i.kind==='prospect').length;
-  $('#mapcount').textContent=`${items.length} shown · ${nLead} in CRM · ${nPros} prospects`;
-  $('#mlist').innerHTML=items.map(({kind,b})=>{
-    const dot=kind==='lead'?`<span class="mdot" style="background:${stageOf(b.stage).color}"></span>`:`<span class="mdot" style="background:transparent;border:2px dashed #94A6BF"></span>`;
-    return `<div class="mrow" onclick="showBizPanel('${kind}','${b.id}')">${dot}<div class="mi"><b>${b.name}${b.hot?' 🔥':''}</b><small>${b.city} · ${b.cat}</small></div>${b.website?'':'<span class="nowww">no www</span>'}</div>`;
-  }).join('')||'<div class="empty" style="padding:30px 16px">No businesses match this filter.</div>';
 }
 function drawSearchRadius(lat,lng,radius){
   if(searchRadiusCircle)searchRadiusCircle.setMap(null);
@@ -1071,20 +1059,47 @@ function drawSearchRadius(lat,lng,radius){
     fillColor:'#4D9FFF',fillOpacity:.08
   });
 }
+async function geocodeLocation(address){
+  // Proxied server-side (see /api/geocode) rather than using google.maps.Geocoder client-side,
+  // since that would need the Geocoding API enabled on the same key the Maps JS script loads with.
+  const res=await fetch('/api/geocode?address='+encodeURIComponent(address));
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.error||(res.status+' '+res.statusText));
+  return data;
+}
 async function searchMapArea(){
   if(!map)return;
   if(!GOOGLE_KEY){$('#mapsearchstatus').textContent='No Google API key configured — see Connect Google Maps.';return;}
   const query=$('#mapSearchCat').value.trim();
+  const locQuery=$('#mapSearchLoc').value.trim();
   const radiusKm=+$('#mapSearchRadius').value;
+  const noweb=$('#mapNoWeb').checked;
   if(!query){$('#mapsearchstatus').textContent='Type what kind of business to search for.';return;}
   if(!radiusKm||radiusKm<=0){$('#mapsearchstatus').textContent='Enter a radius greater than 0.';return;}
   const radius=Math.min(radiusKm,50)*1000; // Places caps location-biased search well under 50km anyway
-  const c=map.getCenter(), lat=c.lat(), lng=c.lng();
   const btn=$('#mapsearchbtn'), status=$('#mapsearchstatus');
   btn.disabled=true; btn.style.opacity=.6;
-  status.textContent=`Searching "${query}" within ${radiusKm} km of where you're looking…`;
+  let lat,lng;
+  if(locQuery){
+    // Geocode the typed place and pan/zoom there so the user never has to drag the map to it themselves
+    status.textContent=`Locating "${locQuery}"…`;
+    try{
+      const geo=await geocodeLocation(locQuery);
+      lat=geo.lat; lng=geo.lng;
+      if(geo.viewport)map.fitBounds(new google.maps.LatLngBounds(geo.viewport.southwest,geo.viewport.northeast));
+      else{map.panTo({lat,lng});map.setZoom(12);}
+    }catch(err){
+      status.textContent=`Couldn't find "${locQuery}" — ${err.message}`;
+      btn.disabled=false; btn.style.opacity=1;
+      return;
+    }
+  }else{
+    const c=map.getCenter(); lat=c.lat(); lng=c.lng();
+  }
+  status.textContent=`Searching "${query}" within ${radiusKm} km of ${locQuery||"where you're looking"}…`;
   try{
-    const places=await searchPlaces(query,{lat,lng,radius});
+    let places=await searchPlaces(query,{lat,lng,radius});
+    if(noweb)places=places.filter(p=>!p.websiteUri);
     const seen=new Set(livePool.map(p=>p.id));
     let added=0;
     places.forEach(p=>{
@@ -1098,10 +1113,8 @@ async function searchMapArea(){
       added++;
     });
     drawSearchRadius(lat,lng,radius);
-    mapSource='all';
-    mapFilter=CATS.includes(query)?query:'all'; // only the fixed chip row can highlight an exact match
     drawMarkers();
-    status.textContent=`${added} new result${added===1?'':'s'} found within ${radiusKm} km`+(added?'':' (or already on your map)');
+    status.textContent=`${added} new result${added===1?'':'s'} found within ${radiusKm} km`+(added?'':' (or already on your map)')+(noweb?' · no website only':'');
   }catch(err){
     status.textContent='Search failed — '+err.message;
   }finally{
@@ -1117,14 +1130,23 @@ function socialChip(icon,label,val,href,unverified){
   const cavat=unverified?' title="Found via web search, not confirmed from their own site — double-check before using."':'';
   return `<a class="social-chip" href="${href||'#'}" target="_blank" rel="noopener"${cavat}>${ic(icon,undefined,15)} ${val}${unverified?' <small style="opacity:.6">· unverified</small>':''}</a>`;
 }
-function showBizPanel(kind,id){
+let bizInfoWindow=null;
+function showBizPanel(kind,id,marker){
   const b=kind==='lead'?leadById(id):prospectById(id);
   if(!b)return;
-  map.panTo({lat:b.lat,lng:b.lng}); map.setZoom(14);
+  if(!marker){
+    const found=mapMarkers.find(m=>m.kind===kind&&m.id===id);
+    marker=found&&found.marker;
+  }
+  map.panTo({lat:b.lat,lng:b.lng});
+  if(map.getZoom()<14)map.setZoom(14);
   const inCRM=kind==='lead';
   const so=b.socials||{};
-  $('#mdetail').innerHTML=`
-    <div class="bd-back" onclick="closeBizPanel()"><span style="font-size:16px;line-height:1">‹</span> Back to list</div>
+  const pending=!b._enrichChecked; // haven't auto-enriched this one yet
+  const enrichNote=pending
+    ? `${ic('spark','#A855F7',12)} ${b.web?'Scraping '+b.web.replace('https://',''):'Searching for '+b.name}…`
+    : `${ic(b._enrichOk?'check':'link',b._enrichOk?'#22C55E':'#5C6E8A',12)} ${b._enrichNote||'From their site, or a web search if they have none'} · <a onclick="reEnrich('${kind}','${b.id}')">Re-enrich</a>`;
+  const html=`<div class="biz-popup" id="bizpopup">
     <div class="bd-hero">
       <div class="bd-cat">${b.cat} · ${b.city}</div>
       <h2>${b.name}${b.hot?' 🔥':''}</h2>
@@ -1148,7 +1170,7 @@ function showBizPanel(kind,id){
         ${socialChip('facebook','Facebook',so.facebook,'https://facebook.com'+(so.facebook||''),so.facebookSource==='search')}
         ${socialChip('globe','Google',so.google,'https://maps.google.com/?q='+encodeURIComponent(b.name))}
       </div>
-      <div class="enrichnote">${ic('link','#5C6E8A',12)} From their site, or a web search if they have none · <a onclick="reEnrich('${kind}','${b.id}')">Re-enrich</a></div>
+      <div class="enrichnote">${enrichNote}</div>
     </div>
     <div class="bd-cta">
       ${inCRM
@@ -1156,16 +1178,26 @@ function showBizPanel(kind,id){
            <button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="openLead('${b.id}')">Open full record</button>`
         : `<button class="btn" onclick="addProspectToCRM('${b.id}')">${ic('plus','#fff',16)} Add ${b.name.length>18?'to CRM':b.name+' to CRM'}</button>
            <div style="font-size:11px;color:var(--dim);text-align:center;margin-top:8px">Creates a New lead${b.website?'':' · flagged as a no-website opportunity'}</div>`}
-    </div>`;
-  $('#mappanel').classList.add('detail');
-  const ml=document.querySelector('.maplayout');if(ml)ml.classList.add('detailmode');
-  setTimeout(()=>nudgeMap(map),260);
+    </div>
+  </div>`;
+  if(!bizInfoWindow)bizInfoWindow=new google.maps.InfoWindow();
+  bizInfoWindow.setContent(html);
+  if(marker){
+    bizInfoWindow.open({anchor:marker,map});
+  }else{
+    bizInfoWindow.setPosition({lat:b.lat,lng:b.lng});
+    bizInfoWindow.open({map});
+  }
+  // Auto-find socials the first time this business's popup is opened, instead of
+  // making the user click "Re-enrich" — the link stays for a manual retry afterward.
+  if(pending)reEnrich(kind,id);
 }
-function closeBizPanel(){const p=$('#mappanel');if(p)p.classList.remove('detail');const ml=document.querySelector('.maplayout');if(ml)ml.classList.remove('detailmode');setTimeout(()=>nudgeMap(map),260);}
+function closeBizPanel(){if(bizInfoWindow)bizInfoWindow.close();}
 async function reEnrich(kind,id){
   const b=kind==='lead'?leadById(id):prospectById(id);
   if(!b)return;
-  const note=document.querySelector('#mdetail .enrichnote');
+  b._enrichChecked=true;
+  const note=document.querySelector('#bizpopup .enrichnote');
   const relink=`<a onclick="reEnrich('${kind}','${id}')">Re-enrich</a>`;
   if(note)note.innerHTML=ic('spark','#A855F7',12)+' '+(b.web?'Scraping '+b.web.replace('https://',''):'Searching for '+b.name)+'…';
   try{
@@ -1173,6 +1205,7 @@ async function reEnrich(kind,id){
     const res=await fetch('/api/socials?'+qs.toString());
     const data=await res.json();
     if(data.error){
+      b._enrichOk=false; b._enrichNote=data.error;
       if(note)note.innerHTML=ic('link','#5C6E8A',12)+' '+data.error+' · '+relink;
       return;
     }
@@ -1181,11 +1214,13 @@ async function reEnrich(kind,id){
     if(data.facebook){b.socials.facebook=data.facebook;b.socials.facebookSource=data.facebookSource;}
     const found=[data.instagram&&'Instagram',data.facebook&&'Facebook'].filter(Boolean);
     const anyUnverified=data.instagramSource==='search'||data.facebookSource==='search';
-    if($('#mdetail'))showBizPanel(kind,id); // re-render with the new socials
-    const note2=document.querySelector('#mdetail .enrichnote');
-    if(note2)note2.innerHTML=ic('check','#22C55E',12)+' '+(found.length?found.join(' & ')+' found'+(anyUnverified?' (via search — please verify)':''):'No social links found')+' · '+relink;
+    b._enrichOk=true;
+    b._enrichNote=found.length?found.join(' & ')+' found'+(anyUnverified?' (via search — please verify)':''):'No social links found';
+    if(document.getElementById('bizpopup'))showBizPanel(kind,id); // re-render with the new socials + note
+    else if(note)note.innerHTML=ic('check','#22C55E',12)+' '+b._enrichNote+' · '+relink;
     if(state.view==='crm')renderCRM();
   }catch(err){
+    b._enrichOk=false; b._enrichNote='Scrape failed — '+err.message;
     if(note)note.innerHTML=ic('link','#5C6E8A',12)+' Scrape failed — '+err.message+' · '+relink;
   }
 }
