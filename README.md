@@ -21,7 +21,9 @@ minimal Vite dev server set up (`npm run dev`) for live reload while editing.
    Create Map ID → Vector → default style) and turn off the "Points of interest" layer in its Style
    Editor, so Google's own business icons don't clash with LeadGrid's custom pins. Leaving the Map ID
    field blank in the app falls back to Google's public `DEMO_MAP_ID`, which works immediately but is
-   documented by Google as testing-only.
+   documented by Google as testing-only — **and it's fixed to a light style, so the Light/Dark toggle
+   on the Map view has no visible effect until you set a real Map ID.** (Advanced Markers require some
+   Map ID to be present, so the app can't just omit it.)
 
 Paste the API key (and Map ID, if you made one) into the "Connect Google Maps" card shown on first
 load — it's saved in your browser's `localStorage` from then on, and the same key is shared with

@@ -215,7 +215,7 @@
   .social-chip:hover{border-color:var(--blue)}
   .social-chip.off{opacity:.45;font-style:italic}
   .social-chip svg{color:var(--blue-2)}
-  .bd-cta{padding:16px 18px;margin-top:auto;position:sticky;bottom:0;background:linear-gradient(0deg,var(--panel) 70%,transparent);border-top:1px solid var(--line)}
+  .bd-cta{padding:16px 18px;margin-top:auto;background:var(--panel);border-top:1px solid var(--line)}
   .bd-cta .btn{width:100%;justify-content:center}
   .incrm{display:flex;align-items:center;gap:8px;justify-content:center;color:var(--won);font-weight:600;font-size:13px;padding:11px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:9px}
   .mappanel.detail .ph,.mappanel.detail .maplegend,.mappanel.detail .filterrow,.mappanel.detail .mlist{display:none}
@@ -384,6 +384,11 @@
   .empty{text-align:center;color:var(--dim);padding:50px 20px}
   .empty svg{opacity:.4;margin-bottom:12px}
   .flbl{font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500}
+  .area-suggest-wrap{position:relative}
+  .area-suggest{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 30px rgba(0,0,0,.4);max-height:220px;overflow:auto;z-index:50;display:none}
+  .area-suggest.open{display:block}
+  .area-suggest button{display:block;width:100%;text-align:left;padding:9px 12px;font-size:13px;color:var(--text);background:none;border:none;cursor:pointer}
+  .area-suggest button:hover,.area-suggest button.hi{background:var(--panel-3)}
   .keyrow{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   .keynote{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px;flex:1;min-width:200px;line-height:1.4}
 
@@ -515,6 +520,27 @@
   </div>
 </div>
 
+<!-- REP EDITOR -->
+<div class="confirm-wrap" id="repModal"><div class="scrim" onclick="closeRepModal()"></div>
+  <div class="confirm-box" style="text-align:left;max-width:360px">
+    <div style="font-weight:600;font-size:16px;margin-bottom:16px" id="repModalTitle">Add rep</div>
+    <div class="flbl">Name</div>
+    <input id="repName" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);margin-bottom:12px">
+    <div class="flbl">Initials</div>
+    <input id="repInit" maxlength="3" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);margin-bottom:12px">
+    <div class="flbl">Territory</div>
+    <input id="repArea" placeholder="e.g. Mississauga · Oakville" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);margin-bottom:12px">
+    <div class="flbl">Color</div>
+    <input id="repColor" type="color" value="#2F6BFF" style="width:100%;height:38px;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:2px;margin-bottom:14px">
+    <div id="repModalError" style="color:#F87171;font-size:12px;margin-bottom:10px;display:none"></div>
+    <div class="confirm-acts">
+      <button class="btn ghost" style="flex:1;justify-content:center" onclick="closeRepModal()">Cancel</button>
+      <button class="btn" style="flex:1;justify-content:center" onclick="saveRepModal()">Save</button>
+    </div>
+    <button class="btn ghost" id="repDeleteBtn" style="width:100%;justify-content:center;margin-top:10px;color:#F87171;display:none" onclick="deleteRepFromModal()">Delete rep</button>
+  </div>
+</div>
+
 <!-- AI -->
 <button class="ai-fab" id="aifab" onclick="openAI()"><i data-ic="spark" data-c="#fff" data-s="22"></i></button>
 <div class="ai-panel" id="aipanel">
@@ -554,7 +580,7 @@ function ic(n,c,s){c=c||'currentColor';s=s||17;const p={
   };return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+((p[n]||'').split(/(?=M)/).map(d=>'<path d="'+d+'"/>').join(''))+'</svg>';}
 
 /* ========== DATA ========== */
-const REPS=[
+let REPS=[
   {id:'r1',name:'Zain Khan',init:'ZK',color:'#2F6BFF',area:'Mississauga · Oakville'},
   {id:'r2',name:'Maya Torres',init:'MT',color:'#22C55E',area:'North York · Vaughan'},
   {id:'r3',name:'Devon Reid',init:'DR',color:'#A855F7',area:'Downtown · Scarborough'},
@@ -565,39 +591,29 @@ const STAGES=[
   {id:'won',name:'Won',color:'#22C55E'},{id:'lost',name:'Lost',color:'#EF4444'}];
 const stageOf=id=>STAGES.find(s=>s.id===id);
 const CATS=['Nail Salon','HVAC','Plumbing','Restaurant','Auto Repair','Dental','Landscaping','Fitness'];
+// Lead Finder searches every category behind the scenes (no user-picked type) and labels each
+// result from what Google actually returns — see CAT_QUERY_TERMS / inferCategory below.
+const AREA_SUGGESTIONS=['Mississauga, ON','Oakville, ON','North York, ON','Vaughan, ON','Scarborough, ON','Toronto, ON','Etobicoke, ON','Brampton, ON','Richmond Hill, ON','Markham, ON'];
+const CAT_QUERY_TERMS={'Nail Salon':'nail salons','HVAC':'HVAC contractors','Plumbing':'plumbers',
+  'Restaurant':'restaurants','Auto Repair':'auto repair shops','Dental':'dentists',
+  'Landscaping':'landscaping companies','Fitness':'gyms'};
+function inferCategory(types){
+  const joined=(types||[]).join(' ');
+  if(/nail_salon/.test(joined))return 'Nail Salon';
+  if(/hvac|heating|air_conditioning/.test(joined))return 'HVAC';
+  if(/plumb/.test(joined))return 'Plumbing';
+  if(/restaurant|cafe|bakery|meal_|bar\b|food/.test(joined))return 'Restaurant';
+  if(/car_repair|car_wash|auto/.test(joined))return 'Auto Repair';
+  if(/dent/.test(joined))return 'Dental';
+  if(/landscap|lawn/.test(joined))return 'Landscaping';
+  if(/gym|fitness/.test(joined))return 'Fitness';
+  return 'Other';
+}
 
-let LEADS=[
-  {id:'l1',name:'9 Natural Nails & Spa',cat:'Nail Salon',stage:'proposal',rep:'r1',lat:43.5890,lng:-79.6441,city:'Mississauga',phone:'(905) 555-0182',website:false,rating:4.6,reviewCount:212,value:1450,hot:true},
-  {id:'l2',name:'PeelHeat Mechanical',cat:'HVAC',stage:'qualified',rep:'r1',lat:43.5772,lng:-79.6100,city:'Mississauga',phone:'(905) 555-0143',website:true,rating:4.2,reviewCount:88,value:2200,hot:true},
-  {id:'l3',name:'RushFlow Plumbing',cat:'Plumbing',stage:'contacted',rep:'r1',lat:43.6011,lng:-79.6620,city:'Mississauga',phone:'(905) 555-0119',website:false,rating:3.9,reviewCount:41,value:1800},
-  {id:'l4',name:'Saffron Table',cat:'Restaurant',stage:'won',rep:'r1',lat:43.5501,lng:-79.7020,city:'Oakville',phone:'(905) 555-0177',website:true,rating:4.7,reviewCount:530,value:1950},
-  {id:'l5',name:'Lakeshore Auto Care',cat:'Auto Repair',stage:'new',rep:'r1',lat:43.5620,lng:-79.5710,city:'Mississauga',phone:'(905) 555-0164',website:false,rating:4.1,reviewCount:67,value:1600},
-  {id:'l6',name:'Bright Smile Dental',cat:'Dental',stage:'contacted',rep:'r2',lat:43.7615,lng:-79.4111,city:'North York',phone:'(416) 555-0101',website:true,rating:4.8,reviewCount:302,value:2600,hot:true},
-  {id:'l7',name:'Vaughan Green Landscapes',cat:'Landscaping',stage:'new',rep:'r2',lat:43.8361,lng:-79.4985,city:'Vaughan',phone:'(905) 555-0155',website:false,rating:4.3,reviewCount:54,value:1500},
-  {id:'l8',name:'IronPeak Fitness',cat:'Fitness',stage:'qualified',rep:'r2',lat:43.7810,lng:-79.4200,city:'North York',phone:'(416) 555-0188',website:true,rating:4.5,reviewCount:190,value:1750},
-  {id:'l9',name:'Northtown Comfort HVAC',cat:'HVAC',stage:'proposal',rep:'r2',lat:43.7940,lng:-79.4520,city:'North York',phone:'(416) 555-0133',website:false,rating:4.0,reviewCount:73,value:2300,hot:true},
-  {id:'l10',name:'Golden Wok Kitchen',cat:'Restaurant',stage:'contacted',rep:'r2',lat:43.7500,lng:-79.4700,city:'North York',phone:'(416) 555-0122',website:false,rating:4.4,reviewCount:410,value:1900},
-  {id:'l11',name:'Downtown Drip Coffee',cat:'Restaurant',stage:'new',rep:'r3',lat:43.6510,lng:-79.3810,city:'Toronto',phone:'(416) 555-0175',website:true,rating:4.6,reviewCount:820,value:1700},
-  {id:'l12',name:'HarbourFront Plumbing',cat:'Plumbing',stage:'qualified',rep:'r3',lat:43.6390,lng:-79.3820,city:'Toronto',phone:'(416) 555-0111',website:false,rating:3.8,reviewCount:36,value:1850,hot:true},
-  {id:'l13',name:'Scarborough Auto Hub',cat:'Auto Repair',stage:'contacted',rep:'r3',lat:43.7730,lng:-79.2570,city:'Scarborough',phone:'(416) 555-0198',website:false,rating:4.2,reviewCount:120,value:1650},
-  {id:'l14',name:'East End Dental Studio',cat:'Dental',stage:'proposal',rep:'r3',lat:43.6890,lng:-79.3200,city:'Toronto',phone:'(416) 555-0144',website:true,rating:4.9,reviewCount:265,value:2700,hot:true},
-  {id:'l15',name:'Queen St Nails',cat:'Nail Salon',stage:'won',rep:'r3',lat:43.6470,lng:-79.4010,city:'Toronto',phone:'(416) 555-0166',website:false,rating:4.5,reviewCount:178,value:1400},
-  {id:'l16',name:'Bloor Fitness Collective',cat:'Fitness',stage:'lost',rep:'r3',lat:43.6660,lng:-79.4110,city:'Toronto',phone:'(416) 555-0159',website:true,rating:4.1,reviewCount:95,value:1750},
-];
+let LEADS=[];
 
 // prospects on the map, not yet in CRM
-const POOL=[
-  {id:'p1',name:'Erin Mills Nail Bar',cat:'Nail Salon',lat:43.5480,lng:-79.7130,city:'Mississauga',phone:'(905) 555-0210',website:false,rating:4.4,reviewCount:98,value:1450},
-  {id:'p2',name:'Cooksville Heating Co',cat:'HVAC',lat:43.5810,lng:-79.6210,city:'Mississauga',phone:'(905) 555-0221',website:false,rating:3.7,reviewCount:29,value:2200},
-  {id:'p3',name:'Streetsville Plumbers',cat:'Plumbing',lat:43.5860,lng:-79.7070,city:'Mississauga',phone:'(905) 555-0233',website:true,rating:4.0,reviewCount:52,value:1800},
-  {id:'p4',name:'Port Credit Bistro',cat:'Restaurant',lat:43.5540,lng:-79.5820,city:'Mississauga',phone:'(905) 555-0244',website:false,rating:4.6,reviewCount:340,value:1900},
-  {id:'p5',name:'Meadowvale Auto',cat:'Auto Repair',lat:43.5990,lng:-79.7480,city:'Mississauga',phone:'(905) 555-0255',website:false,rating:4.2,reviewCount:71,value:1600},
-  {id:'p6',name:'Willowdale Dental Care',cat:'Dental',lat:43.7700,lng:-79.4140,city:'North York',phone:'(416) 555-0266',website:false,rating:4.7,reviewCount:210,value:2600},
-  {id:'p7',name:'Thornhill Lawn Pros',cat:'Landscaping',lat:43.8140,lng:-79.4230,city:'Vaughan',phone:'(905) 555-0277',website:false,rating:4.1,reviewCount:44,value:1500},
-  {id:'p8',name:'Yonge Strength Studio',cat:'Fitness',lat:43.7620,lng:-79.4110,city:'North York',phone:'(416) 555-0288',website:true,rating:4.3,reviewCount:130,value:1750},
-  {id:'p9',name:'Leslieville Nail Lounge',cat:'Nail Salon',lat:43.6640,lng:-79.3350,city:'Toronto',phone:'(416) 555-0299',website:false,rating:4.5,reviewCount:160,value:1400},
-  {id:'p10',name:'Danforth Comfort Air',cat:'HVAC',lat:43.6790,lng:-79.3490,city:'Toronto',phone:'(416) 555-0300',website:false,rating:3.9,reviewCount:38,value:2300},
-];
+const POOL=[];
 
 // ---- enrich every business with contact + social + location + score ----
 const STREETS=['Lakeshore Rd','Dundas St W','Hurontario St','Yonge St','Queen St E','Bloor St W','Danforth Ave','Eglinton Ave','Kingston Rd','Rutherford Rd'];
@@ -657,8 +673,9 @@ LEADS.forEach(enrich); POOL.forEach(enrich);
 const addedProspects=new Set();
 let livePool=[];              // businesses fetched live from Google Places
 let PLACES_KEY='';            // kept in sync with GOOGLE_KEY below — Places search reads this
-let GOOGLE_KEY=localStorage.getItem('lg_google_key')||'';       // shared Google API key (map + search)
-let GOOGLE_MAP_ID=localStorage.getItem('lg_google_mapid')||'';  // optional; falls back to DEMO_MAP_ID
+const envVal=v=>(v&&!v.startsWith('%'))?v:'';  // Vite leaves %KEY% untouched if the env var isn't set
+let GOOGLE_KEY=localStorage.getItem('lg_google_key')||envVal('%VITE_GOOGLE_API_KEY%');       // shared Google API key (map + search); falls back to .env.local
+let GOOGLE_MAP_ID=localStorage.getItem('lg_google_mapid')||envVal('%VITE_GOOGLE_MAP_ID%');  // optional; falls back to DEMO_MAP_ID or .env.local
 PLACES_KEY=GOOGLE_KEY;
 function saveGoogleCreds(key,mapId){
   GOOGLE_KEY=(key||'').trim();
@@ -669,18 +686,9 @@ function saveGoogleCreds(key,mapId){
 }
 const prospectById=id=>POOL.find(p=>p.id===id)||livePool.find(p=>p.id===id);
 
-const EVENTS=[
-  {lead:'l1',day:1,hour:10,type:'Demo call',rep:'r1'},
-  {lead:'l2',day:1,hour:14,type:'Discovery',rep:'r1'},
-  {lead:'l6',day:2,hour:11,type:'Proposal review',rep:'r2'},
-  {lead:'l14',day:2,hour:15,type:'Site walkthrough',rep:'r3'},
-  {lead:'l9',day:3,hour:10,type:'Follow-up',rep:'r2'},
-  {lead:'l12',day:3,hour:13,type:'Demo call',rep:'r3'},
-  {lead:'l3',day:4,hour:11,type:'Cold follow-up',rep:'r1'},
-  {lead:'l10',day:4,hour:16,type:'Menu photos',rep:'r2'},
-];
+const EVENTS=[];
 
-let state={view:'areas',rep:'all',finderCat:'',finderResults:[],finderAdded:new Set()};
+let state={view:'areas',rep:'all',finderCat:'',finderArea:'',finderResults:[],finderAdded:new Set()};
 
 /* ========== HELPERS ========== */
 const $=s=>document.querySelector(s);
@@ -693,8 +701,8 @@ function repAv(id){const r=repById(id);return r?'<span class="repav" style="back
 function scoreColor(s){return s>=75?'#22C55E':s>=58?'#4D9FFF':s>=45?'#F5A524':'#EF4444';}
 function scorePill(s){const c=scoreColor(s);return `<span class="scorepill"><span class="sbar"><i style="width:${s}%;background:${c}"></i></span><b style="color:${c}">${s}</b></span>`;}
 function socialIcons(b){const so=b.socials||{},it=[];
-  if(so.instagram)it.push(`<a class="sic" href="https://instagram.com/${so.instagram.replace('@','')}" target="_blank" rel="noopener" title="Instagram" onclick="event.stopPropagation()">${ic('instagram','#C084FC',15)}</a>`);
-  if(so.facebook)it.push(`<a class="sic" href="https://facebook.com${so.facebook}" target="_blank" rel="noopener" title="Facebook" onclick="event.stopPropagation()">${ic('facebook','#4D9FFF',15)}</a>`);
+  if(so.instagram)it.push(`<a class="sic" href="https://instagram.com/${so.instagram.replace('@','')}" target="_blank" rel="noopener" title="Instagram${so.instagramSource==='search'?' (found via search — unverified)':''}" onclick="event.stopPropagation()">${ic('instagram',so.instagramSource==='search'?'#8B6FB8':'#C084FC',15)}</a>`);
+  if(so.facebook)it.push(`<a class="sic" href="https://facebook.com${so.facebook}" target="_blank" rel="noopener" title="Facebook${so.facebookSource==='search'?' (found via search — unverified)':''}" onclick="event.stopPropagation()">${ic('facebook',so.facebookSource==='search'?'#3D6690':'#4D9FFF',15)}</a>`);
   if(so.google)it.push(`<a class="sic" href="https://maps.google.com/?q=${encodeURIComponent(b.name)}" target="_blank" rel="noopener" title="Google" onclick="event.stopPropagation()">${ic('globe','#8DA0BC',15)}</a>`);
   return it.length?`<div class="sics">${it.join('')}</div>`:'<span style="color:var(--dim)">—</span>';}
 function haversine(a,b){const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
@@ -725,14 +733,7 @@ function renderDash(){
   const counts=STAGES.map(s=>({s,n:ls.filter(l=>l.stage===s.id).length}));
   const maxc=Math.max(...counts.map(c=>c.n),1);
 
-  const feed=[
-    {c:'#22C55E',t:'<b>Saffron Table</b> moved to Won',by:'Zain Khan',ago:'2h'},
-    {c:'#A855F7',t:'Proposal sent to <b>9 Natural Nails & Spa</b>',by:'Zain Khan',ago:'4h'},
-    {c:'#4D9FFF',t:'<b>IronPeak Fitness</b> qualified',by:'Maya Torres',ago:'6h'},
-    {c:'#F5A524',t:'Called <b>Golden Wok Kitchen</b> — left VM',by:'Maya Torres',ago:'Yesterday'},
-    {c:'#2F6BFF',t:'12 new leads imported to <b>Downtown</b>',by:'Devon Reid',ago:'Yesterday'},
-    {c:'#EF4444',t:'<b>Bloor Fitness Collective</b> marked lost',by:'Devon Reid',ago:'2d'},
-  ];
+  const feed=[];
 
   $('#v-dashboard').innerHTML=`
     <div class="viewhead"><div><div class="t">Good morning, John</div><div class="s">${open.length} open leads across the GTA · ${money(pipeVal)} in play</div></div>
@@ -748,7 +749,7 @@ function renderDash(){
         <div class="funnel">${counts.map(c=>`<div class="fstage"><span class="nm">${c.s.name}</span><div class="bar"><div class="fill" style="width:${c.n/maxc*100}%;background:${c.s.color}"></div></div><span class="n">${c.n}</span></div>`).join('')}</div>
       </div>
       <div class="card"><h3>Recent activity</h3>
-        <div class="feed">${feed.map(f=>`<div class="fitem"><span class="dot" style="background:${f.c}"></span><div class="tx">${f.t}<div><time>${f.by} · ${f.ago}</time></div></div></div>`).join('')}</div>
+        <div class="feed">${feed.length?feed.map(f=>`<div class="fitem"><span class="dot" style="background:${f.c}"></span><div class="tx">${f.t}<div><time>${f.by} · ${f.ago}</time></div></div></div>`).join(''):'<div style="color:var(--dim);font-size:13px">No activity yet.</div>'}</div>
       </div>
     </div>`;
 }
@@ -914,8 +915,8 @@ function doConfirm(){const cb=_confirmCb;_confirmCb=null;$('#confirmModal').clas
 function askDeleteLead(id){const l=leadById(id);if(!l)return;openConfirm(`Delete <b>${l.name}</b> from your CRM?<br><span style="color:var(--muted);font-size:12.5px">This removes the lead and its outreach. It can’t be undone.</span>`,()=>deleteLead(id));}
 function deleteLead(id){
   const i=LEADS.findIndex(l=>l.id===id); if(i<0)return;
-  // if this lead came from a map prospect, free it so it can reappear as a prospect
-  const m=/^l_(p\d+)_/.exec(id); if(m)addedProspects.delete(m[1]);
+  // if this lead came from a map prospect or a Lead Finder search, free it so it can resurface
+  if(LEADS[i].sourceId)addedProspects.delete(LEADS[i].sourceId);
   LEADS.splice(i,1);
   closeDrawer(); updateBadges();
   if(state.view==='areas'&&map){drawMarkers();} else {render(state.view);}
@@ -962,7 +963,7 @@ function googleGateHTML(containerId){
     <div style="font-weight:600;color:var(--text);margin:10px 0 4px">Connect Google Maps</div>
     <div style="font-size:12.5px;margin-bottom:16px">Paste a Google API key (Maps JavaScript API + Places API enabled) to load the map.</div>
     <input id="${containerId}-ggkey" type="password" placeholder="Google API key" value="${GOOGLE_KEY?GOOGLE_KEY.replace(/"/g,'&quot;'):''}" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:8px">
-    <input id="${containerId}-ggmapid" type="text" placeholder="Map ID (optional — uses Google's demo Map ID if blank)" value="${GOOGLE_MAP_ID?GOOGLE_MAP_ID.replace(/"/g,'&quot;'):''}" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:10px">
+    <input id="${containerId}-ggmapid" type="text" placeholder="Map ID (optional — but required for dark mode; blank uses Google's demo Map ID, which is light-only)" value="${GOOGLE_MAP_ID?GOOGLE_MAP_ID.replace(/"/g,'&quot;'):''}" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px;margin-bottom:10px">
     <button class="btn" style="width:100%;justify-content:center" onclick="submitGoogleCreds('${containerId}')">${ic('check','#fff',15)} Save &amp; load map</button>
   </div>`;
 }
@@ -975,24 +976,34 @@ function submitGoogleCreds(containerId){
 }
 
 /* ========== MAP (home) ========== */
-let map,mapFilter='all',mapSource='all',mapColorScheme='light';
+let map,mapFilter='all',mapSource='all',mapColorScheme='light',searchRadiusCircle=null;
 function renderAreas(){
   $('#v-areas').innerHTML=`<div class="maplayout"><div id="map"></div>
     <div class="mappanel" id="mappanel">
       <div class="ph"><div class="t">Businesses on the map</div><div class="s" id="mapcount"></div></div>
+      <div class="mapsearch" style="padding:10px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="mapSearchCat" type="text" placeholder="e.g. plumber, coffee shop, gym" onkeydown="if(event.key==='Enter')searchMapArea()" style="flex:1;min-width:150px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--text);font-size:12px">
+        <div style="display:flex;align-items:center;gap:5px">
+          <input id="mapSearchRadius" type="number" value="5" min="0.1" max="50" step="0.5" style="width:64px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--text);font-size:12px">
+          <span style="font-size:12px;color:var(--muted)">km</span>
+        </div>
+        <button class="btn" style="padding:7px 12px;font-size:12px" onclick="searchMapArea()" id="mapsearchbtn">${ic('search','#fff',14)} Search this area</button>
+        <div id="mapsearchstatus" style="flex-basis:100%;font-size:11px;color:var(--muted)"></div>
+      </div>
       <div class="maplegend">
         <span class="lg"><i style="background:#22C55E"></i> In CRM</span>
         <span class="lg"><i class="ring"></i> Prospect — tap to add</span>
         <span class="lg">🔥 hot</span>
-        <div class="baseseg" id="baseseg">
+        <div class="baseseg" id="baseseg" title="${GOOGLE_MAP_ID?'':'Dark mode needs a custom Map ID — Google\'s demo Map ID is light-only. Add one via Connect Google Maps.'}">
           <button data-scheme="light" class="${mapColorScheme==='light'?'on':''}" onclick="toggleColorScheme('light')">Light</button>
           <button data-scheme="dark" class="${mapColorScheme==='dark'?'on':''}" onclick="toggleColorScheme('dark')">Dark</button>
         </div>
+        ${GOOGLE_MAP_ID?'':'<small style="color:var(--dim);flex-basis:100%">Dark needs a custom Map ID (see Connect Google Maps)</small>'}
       </div>
       <div class="filterrow" id="srcrow">
         ${[['all','All'],['crm','In CRM'],['prospect','Prospects']].map(([k,l])=>`<button class="chip ${mapSource===k?'on':''}" onclick="mapSource='${k}';drawMarkers()">${l}</button>`).join('')}
       </div>
-      <div class="filterrow">${['all',...CATS].map(c=>`<button class="chip cat-chip ${mapFilter===c?'on':''}" onclick="mapFilter='${c}';drawMarkers()">${c==='all'?'All types':c}</button>`).join('')}</div>
+      <div class="filterrow">${['all',...CATS,'Other'].map(c=>`<button class="chip cat-chip ${mapFilter===c?'on':''}" onclick="mapFilter='${c}';drawMarkers()">${c==='all'?'All types':c}</button>`).join('')}</div>
       <div class="mlist" id="mlist"></div>
       <div class="bizdetail" id="mdetail"></div>
     </div></div>`;
@@ -1002,16 +1013,19 @@ let mapMarkers=[];
 function toggleColorScheme(mode){ // shared by both the main map and routes map
   mapColorScheme=mode;
   document.querySelectorAll('#baseseg button').forEach(b=>b.classList.toggle('on',b.dataset.scheme===mode));
-  if(map)map.setOptions({colorScheme:mode==='dark'?google.maps.ColorScheme.DARK:google.maps.ColorScheme.LIGHT});
+  // colorScheme only takes effect when a vector map is constructed — map.setOptions() can't hot-swap
+  // it for maps using a custom Map ID, so rebuild the map in place (keeping the current viewport).
+  if(map)initMap({center:map.getCenter(),zoom:map.getZoom()});
 }
-function initMap(){
+function initMap(keepView){
   const el=$('#map'); if(!el) return;
   if(!GOOGLE_KEY){el.innerHTML=googleGateHTML('map');return;}
   if(googleAuthError){el.innerHTML=googleGateHTML('map');return;}
   if(!gmapsReady){ensureGoogleMaps(initMap);return;}
   map=new google.maps.Map(el,{
-    center:{lat:43.68,lng:-79.45}, zoom:9.4,
+    center:keepView?keepView.center:{lat:43.68,lng:-79.45}, zoom:keepView?keepView.zoom:9.4,
     mapId:GOOGLE_MAP_ID||'DEMO_MAP_ID',
+    renderingType:google.maps.RenderingType.VECTOR, // colorScheme (light/dark) only applies to vector maps; the classic constructor defaults to raster otherwise
     colorScheme:mapColorScheme==='dark'?google.maps.ColorScheme.DARK:google.maps.ColorScheme.LIGHT,
     disableDefaultUI:true, clickableIcons:false
   });
@@ -1052,13 +1066,60 @@ function drawMarkers(){
     return `<div class="mrow" onclick="showBizPanel('${kind}','${b.id}')">${dot}<div class="mi"><b>${b.name}${b.hot?' 🔥':''}</b><small>${b.city} · ${b.cat}</small></div>${b.website?'':'<span class="nowww">no www</span>'}</div>`;
   }).join('')||'<div class="empty" style="padding:30px 16px">No businesses match this filter.</div>';
 }
+function drawSearchRadius(lat,lng,radius){
+  if(searchRadiusCircle)searchRadiusCircle.setMap(null);
+  searchRadiusCircle=new google.maps.Circle({
+    map,center:{lat,lng},radius,clickable:false,
+    strokeColor:'#4D9FFF',strokeOpacity:.7,strokeWeight:1.5,
+    fillColor:'#4D9FFF',fillOpacity:.08
+  });
+}
+async function searchMapArea(){
+  if(!map)return;
+  if(!GOOGLE_KEY){$('#mapsearchstatus').textContent='No Google API key configured — see Connect Google Maps.';return;}
+  const query=$('#mapSearchCat').value.trim();
+  const radiusKm=+$('#mapSearchRadius').value;
+  if(!query){$('#mapsearchstatus').textContent='Type what kind of business to search for.';return;}
+  if(!radiusKm||radiusKm<=0){$('#mapsearchstatus').textContent='Enter a radius greater than 0.';return;}
+  const radius=Math.min(radiusKm,50)*1000; // Places caps location-biased search well under 50km anyway
+  const c=map.getCenter(), lat=c.lat(), lng=c.lng();
+  const btn=$('#mapsearchbtn'), status=$('#mapsearchstatus');
+  btn.disabled=true; btn.style.opacity=.6;
+  status.textContent=`Searching "${query}" within ${radiusKm} km of where you're looking…`;
+  PLACES_KEY=GOOGLE_KEY;
+  try{
+    const places=await searchPlaces(query,{lat,lng,radius});
+    const seen=new Set(livePool.map(p=>p.id));
+    let added=0;
+    places.forEach(p=>{
+      if(!p.id)return;
+      const gid='g_'+p.id;
+      if(seen.has(gid)||addedProspects.has(gid))return;
+      const biz=placeToBusiness(p,query); // if Google's own type data is ambiguous, fall back to what was typed
+      if(!biz.lat||!biz.lng)return;
+      seen.add(gid);
+      livePool.push(biz);
+      added++;
+    });
+    drawSearchRadius(lat,lng,radius);
+    mapSource='all';
+    mapFilter=CATS.includes(query)?query:'all'; // only the fixed chip row can highlight an exact match
+    drawMarkers();
+    status.textContent=`${added} new result${added===1?'':'s'} found within ${radiusKm} km`+(added?'':' (or already on your map)');
+  }catch(err){
+    status.textContent='Search failed — '+err.message;
+  }finally{
+    btn.disabled=false; btn.style.opacity=1;
+  }
+}
 function contactRow(icon,key,val,href){
   const v=val?(href?`<a href="${href}" target="_blank" rel="noopener">${val} ${ic('ext','#4D9FFF',12)}</a>`:val):`<span class="v miss">Not listed</span>`;
   return `<div class="crow"><span class="ci">${ic(icon,'#4D9FFF',15)}</span><div class="cc"><div class="k">${key}</div><div class="v">${val?v:'<span class="miss">Not listed</span>'}</div></div></div>`;
 }
-function socialChip(icon,label,val,href){
+function socialChip(icon,label,val,href,unverified){
   if(!val)return `<span class="social-chip off">${ic(icon,'#5C6E8A',15)} No ${label}</span>`;
-  return `<a class="social-chip" href="${href||'#'}" target="_blank" rel="noopener">${ic(icon,undefined,15)} ${val}</a>`;
+  const cavat=unverified?' title="Found via web search, not confirmed from their own site — double-check before using."':'';
+  return `<a class="social-chip" href="${href||'#'}" target="_blank" rel="noopener"${cavat}>${ic(icon,undefined,15)} ${val}${unverified?' <small style="opacity:.6">· unverified</small>':''}</a>`;
 }
 function showBizPanel(kind,id){
   const b=kind==='lead'?leadById(id):prospectById(id);
@@ -1087,11 +1148,11 @@ function showBizPanel(kind,id){
       <div class="lbl">Email &amp; socials <span class="srctag enriched">${ic('spark','#A855F7',11)} Enriched</span></div>
       ${contactRow('mail','Email',b.email,'mailto:'+b.email)}
       <div class="social-chips" style="margin-top:10px">
-        ${socialChip('instagram','Instagram',so.instagram,'https://instagram.com/'+(so.instagram||'').replace('@',''))}
-        ${socialChip('facebook','Facebook',so.facebook,'https://facebook.com'+(so.facebook||''))}
+        ${socialChip('instagram','Instagram',so.instagram,'https://instagram.com/'+(so.instagram||'').replace('@',''),so.instagramSource==='search')}
+        ${socialChip('facebook','Facebook',so.facebook,'https://facebook.com'+(so.facebook||''),so.facebookSource==='search')}
         ${socialChip('globe','Google',so.google,'https://maps.google.com/?q='+encodeURIComponent(b.name))}
       </div>
-      <div class="enrichnote">${ic('link','#5C6E8A',12)} Scraped from the business's site &amp; directories · <a onclick="reEnrich('${kind}','${b.id}')">Re-enrich</a></div>
+      <div class="enrichnote">${ic('link','#5C6E8A',12)} From their site, or a web search if they have none · <a onclick="reEnrich('${kind}','${b.id}')">Re-enrich</a></div>
     </div>
     <div class="bd-cta">
       ${inCRM
@@ -1105,16 +1166,38 @@ function showBizPanel(kind,id){
   setTimeout(()=>nudgeMap(map),260);
 }
 function closeBizPanel(){const p=$('#mappanel');if(p)p.classList.remove('detail');const ml=document.querySelector('.maplayout');if(ml)ml.classList.remove('detailmode');setTimeout(()=>nudgeMap(map),260);}
-function reEnrich(kind,id){
+async function reEnrich(kind,id){
+  const b=kind==='lead'?leadById(id):prospectById(id);
+  if(!b)return;
   const note=document.querySelector('#mdetail .enrichnote');
-  if(note)note.innerHTML=ic('spark','#A855F7',12)+' Re-scraping site &amp; directories…';
-  setTimeout(()=>{if(note)note.innerHTML=ic('check','#22C55E',12)+' Refreshed just now · <a onclick="reEnrich(\''+kind+'\',\''+id+'\')">Re-enrich</a>';},900);
+  const relink=`<a onclick="reEnrich('${kind}','${id}')">Re-enrich</a>`;
+  if(note)note.innerHTML=ic('spark','#A855F7',12)+' '+(b.web?'Scraping '+b.web.replace('https://',''):'Searching for '+b.name)+'…';
+  try{
+    const qs=new URLSearchParams({url:b.web||'',name:b.name||'',city:b.city||''});
+    const res=await fetch('/api/socials?'+qs.toString());
+    const data=await res.json();
+    if(data.error){
+      if(note)note.innerHTML=ic('link','#5C6E8A',12)+' '+data.error+' · '+relink;
+      return;
+    }
+    b.socials=b.socials||{};
+    if(data.instagram){b.socials.instagram=data.instagram;b.socials.instagramSource=data.instagramSource;}
+    if(data.facebook){b.socials.facebook=data.facebook;b.socials.facebookSource=data.facebookSource;}
+    const found=[data.instagram&&'Instagram',data.facebook&&'Facebook'].filter(Boolean);
+    const anyUnverified=data.instagramSource==='search'||data.facebookSource==='search';
+    if($('#mdetail'))showBizPanel(kind,id); // re-render with the new socials
+    const note2=document.querySelector('#mdetail .enrichnote');
+    if(note2)note2.innerHTML=ic('check','#22C55E',12)+' '+(found.length?found.join(' & ')+' found'+(anyUnverified?' (via search — please verify)':''):'No social links found')+' · '+relink;
+    if(state.view==='crm')renderCRM();
+  }catch(err){
+    if(note)note.innerHTML=ic('link','#5C6E8A',12)+' Scrape failed — '+err.message+' · '+relink;
+  }
 }
 function addProspectToCRM(pid){
   const p=prospectById(pid);if(!p)return;
   addedProspects.add(pid);
   const rep=REPS.reduce((best,r)=>{const n=LEADS.filter(l=>l.rep===r.id).length;return n<best.n?{r,n}:best;},{r:REPS[0],n:1e9}).r;
-  const nl={...p,id:'l_'+pid+'_'+Date.now(),stage:'new',rep:rep.id};
+  const nl={...p,id:'l_'+pid+'_'+Date.now(),sourceId:pid,stage:'new',rep:rep.id};
   LEADS.push(nl);
   updateBadges();
   drawMarkers();
@@ -1122,37 +1205,39 @@ function addProspectToCRM(pid){
 }
 
 /* ========== LEAD FINDER ========== */
-function syncFindBtn(){
-  const btn=$('#findbtn'); if(!btn)return;
-  const has=!!($('#fkey').value||'').trim();
-  btn.disabled=!has; btn.style.opacity=has?1:.5; btn.style.cursor=has?'pointer':'not-allowed';
+// Custom-rendered area suggestions — a native <datalist> popup gets clipped by this app's
+// scrollable/overflow-hidden ancestors in Chromium, so it can't fully open. This renders
+// its own dropdown instead, fully under our control.
+function renderAreaSuggest(showAll){
+  const el=$('#areaSuggest'), input=$('#farea'); if(!el||!input)return;
+  const q=showAll?'':input.value.trim().toLowerCase();
+  const matches=AREA_SUGGESTIONS.filter(a=>!q||a.toLowerCase().includes(q));
+  if(!matches.length){el.classList.remove('open');el.innerHTML='';return;}
+  el.innerHTML=matches.map(a=>`<button type="button" onmousedown="event.preventDefault();pickArea('${a.replace(/'/g,"\\'")}')">${a}</button>`).join('');
+  el.classList.add('open');
 }
+function pickArea(a){ $('#farea').value=a; hideAreaSuggest(); }
+function hideAreaSuggest(){ const el=$('#areaSuggest'); if(el){el.classList.remove('open');} }
 function renderFinder(){
-  $('#v-finder').innerHTML=`<div class="viewhead"><div><div class="t">Lead Finder</div><div class="s">Search real local businesses via Google Places — exact locations, pulled onto the map</div></div></div>
-    <div class="card" style="margin-bottom:16px">
-      <div class="keyrow">
-        <div style="flex:1;min-width:220px"><div class="flbl">Google API key</div>
-          <input id="fkey" type="password" placeholder="Paste your Google API key" value="${GOOGLE_KEY?GOOGLE_KEY:''}" oninput="syncFindBtn()" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px"></div>
-        <div class="keynote">${ic('link','#5C6E8A',12)} Shared with the map. Stays in your browser. Restrict the key by HTTP referrer, or use the server route (see chat) for production.</div>
-      </div>
-    </div>
+  $('#v-finder').innerHTML=`<div class="viewhead"><div><div class="t">Lead Finder</div><div class="s">Search an area via Google Places — every business type at once, categorized from what's actually found</div></div></div>
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-        <div style="flex:1;min-width:170px"><div class="flbl">Business type</div>
-          <select id="fcat" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text)">${CATS.map(c=>`<option>${c}</option>`).join('')}</select></div>
-        <div style="flex:1;min-width:170px"><div class="flbl">Area</div>
-          <input id="farea" list="arealist" value="Mississauga, ON" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text)">
-          <datalist id="arealist"><option>Mississauga, ON</option><option>Oakville, ON</option><option>North York, ON</option><option>Vaughan, ON</option><option>Scarborough, ON</option><option>Toronto, ON</option></datalist></div>
+        <div style="flex:1;min-width:220px" class="area-suggest-wrap"><div class="flbl">Area</div>
+          <input id="farea" autocomplete="off" value="Mississauga, ON" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text)"
+            oninput="renderAreaSuggest()" onfocus="renderAreaSuggest(true)" onblur="setTimeout(hideAreaSuggest,150)">
+          <div id="areaSuggest" class="area-suggest"></div></div>
         <div><div class="flbl">Filter</div>
           <label style="display:flex;align-items:center;gap:7px;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:11px 12px;font-size:13px"><input type="checkbox" id="fnoweb"> No website only</label></div>
         <button class="btn" id="findbtn" onclick="runFinder()"${GOOGLE_KEY?'':' disabled style="opacity:.5;cursor:not-allowed"'}">${ic('search','#fff')} Find leads</button>
       </div>
     </div>
-    <div id="finderresults"><div class="empty">${ic('search','#5C6E8A',40)}<div>${GOOGLE_KEY?'Pick a business type and area, then run a search.':'Add your Google API key above to search.'}</div><div style="font-size:12px;margin-top:4px">Real businesses at exact coordinates via Google Places.</div></div></div>`;
+    <div id="finderresults"><div class="empty">${ic('search','#5C6E8A',40)}<div>${GOOGLE_KEY?'Enter an area and run a search.':'No Google API key configured — set VITE_GOOGLE_API_KEY in .env.local, or add one via Connect Google Maps on the Map tab.'}</div><div style="font-size:12px;margin-top:4px">Searches ${CATS.length} categories at once and tags each result by its actual Google Places type.</div></div></div>`;
 }
 
 /* ---- Google Places API (New) — searchText. Works from the browser (CORS-enabled). ---- */
-async function searchPlaces(textQuery,noweb){
+async function searchPlaces(textQuery,near){
+  const body={textQuery,maxResultCount:20,regionCode:'CA'};
+  if(near)body.locationBias={circle:{center:{latitude:near.lat,longitude:near.lng},radius:near.radius}};
   const res=await fetch('https://places.googleapis.com/v1/places:searchText',{
     method:'POST',
     headers:{
@@ -1160,7 +1245,7 @@ async function searchPlaces(textQuery,noweb){
       'X-Goog-Api-Key':PLACES_KEY,
       'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location,places.rating,places.userRatingCount,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.types'
     },
-    body:JSON.stringify({textQuery,maxResultCount:20,regionCode:'CA'})
+    body:JSON.stringify(body)
   });
   if(!res.ok){let msg=res.status+' '+res.statusText;try{const e=await res.json();msg=(e.error&&e.error.message)||msg;}catch(_){}
     throw new Error(msg);}
@@ -1168,14 +1253,18 @@ async function searchPlaces(textQuery,noweb){
   return data.places||[];
 }
 function comp(p,type){const c=(p.addressComponents||[]).find(x=>(x.types||[]).includes(type));return c?(c.shortText||c.longText||''):'';}
-function placeToBusiness(p,cat){
+function placeToBusiness(p,queryCat){
   const loc=p.location||{};
   const num=comp(p,'street_number'), route=comp(p,'route');
   const street=((num?num+' ':'')+route)||((p.formattedAddress||'').split(',')[0]);
+  const inferred=inferCategory(p.types);
   const b={
     id:'g_'+(p.id||Math.random().toString(36).slice(2)),
     name:(p.displayName&&p.displayName.text)||'Unknown business',
-    cat,
+    // Google's own place types don't reliably distinguish some trades (e.g. HVAC/landscaping
+    // both surface as generic "general_contractor"), so fall back to whichever category query
+    // actually found this result when Google's type data is inconclusive.
+    cat:inferred==='Other'&&queryCat?queryCat:inferred,
     city:comp(p,'locality')||comp(p,'sublocality')||comp(p,'administrative_area_level_2')||'',
     province:comp(p,'administrative_area_level_1')||'ON',
     postal:comp(p,'postal_code')||'',
@@ -1195,46 +1284,71 @@ function placeToBusiness(p,cat){
 }
 
 async function runFinder(){
-  const cat=$('#fcat').value, area=$('#farea').value.trim(), noweb=$('#fnoweb').checked;
-  const typedKey=($('#fkey').value||'').trim();
-  if(typedKey)saveGoogleCreds(typedKey,GOOGLE_MAP_ID); // persist so the map picks it up too
+  const area=$('#farea').value.trim(), noweb=$('#fnoweb').checked;
   PLACES_KEY=GOOGLE_KEY;
   const out=$('#finderresults'), btn=$('#findbtn');
   if(!PLACES_KEY){
-    out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>Add your Google API key above to search.</div></div>';
+    out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>No Google API key configured — set VITE_GOOGLE_API_KEY in .env.local, or add one via Connect Google Maps on the Map tab.</div></div>';
     return;
   }
-  btn.disabled=true; btn.style.opacity=.6; out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>Searching Google Places…</div></div>';
+  if(!area){
+    out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>Enter an area to search.</div></div>';
+    return;
+  }
+  btn.disabled=true; btn.style.opacity=.6;
+  out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+`<div>Searching ${CATS.length} categories in ${area}…</div></div>`;
   try{
-    let places=await searchPlaces(`${cat} in ${area}`,noweb);
-    let res=places.map(p=>placeToBusiness(p,cat)).filter(b=>b.lat&&b.lng);
+    // No user-picked type: query every category in parallel, then label each hit from its own
+    // Google Places type (inferCategory), falling back to whichever query found it if that's inconclusive.
+    const batches=await Promise.allSettled(CATS.map(c=>searchPlaces(`${CAT_QUERY_TERMS[c]} in ${area}`).then(places=>({cat:c,places}))));
+    const failed=batches.filter(b=>b.status==='rejected');
+    if(failed.length===batches.length)throw failed[0].reason||new Error('Places API request failed');
+    const seen=new Set();
+    let res=[];
+    batches.forEach(b=>{
+      if(b.status!=='fulfilled')return;
+      const {cat,places}=b.value;
+      places.forEach(p=>{
+        if(!p.id||seen.has(p.id)||addedProspects.has('g_'+p.id))return; // skip dupes + businesses already in the CRM
+        seen.add(p.id);
+        const biz=placeToBusiness(p,cat);
+        if(biz.lat&&biz.lng)res.push(biz);
+      });
+    });
     if(noweb)res=res.filter(b=>!b.website);
     livePool=res;                          // feed the map
     state.finderResults=res;
+    state.finderArea=area;
+    state.finderCat='';
     renderFinderResults(res,area);
     if(state.view==='areas'&&map)drawMarkers();
   }catch(err){
     out.innerHTML=`<div class="card" style="border-color:rgba(239,68,68,.4)"><b style="color:#F87171">Places API error</b><div style="color:var(--muted);font-size:13px;margin-top:6px">${(''+err.message).replace(/</g,'&lt;')}</div><div style="color:var(--dim);font-size:12px;margin-top:8px">Check the key is valid, billing is enabled, and the <b>Places API (New)</b> is turned on. If you opened this file locally, the request still works — but some corporate networks block it.</div></div>`;
   }finally{btn.disabled=false; btn.style.opacity=1;}
 }
+function setFinderCat(cat){ state.finderCat=cat; renderFinderResults(state.finderResults,state.finderArea); }
 
 function renderFinderResults(res,area){
   const out=$('#finderresults');
   if(!res.length){out.innerHTML='<div class="empty">'+ic('search','#5C6E8A',34)+'<div>No businesses matched.</div></div>';return;}
-  out.innerHTML=`<div style="margin:6px 2px 12px;color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px">${res.length} businesses in ${area||'your area'} <span class="pill" style="background:#22C55E1a;color:#22C55E"><span class="d" style="background:#22C55E"></span>live · Google Places</span></div>
-    <div class="tblwrap"><table class="tbl"><thead><tr><th>Business</th><th>Address</th><th>Rating</th><th>Signal</th><th>Score</th><th></th></tr></thead><tbody>
-    ${res.map((p,i)=>`<tr><td><div class="biz"><b>${p.name}</b><small>${p.city||''} · ${p.phone||'no phone'}</small></div></td>
+  const cats=[...new Set(res.map(p=>p.cat))].sort();
+  const rows=state.finderCat?res.filter(p=>p.cat===state.finderCat):res;
+  out.innerHTML=`<div style="margin:6px 2px 12px;color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${res.length} businesses in ${area||'your area'} <span class="pill" style="background:#22C55E1a;color:#22C55E"><span class="d" style="background:#22C55E"></span>live · Google Places</span></div>
+    <div class="filterrow" style="margin-bottom:12px">${['all',...cats].map(c=>`<button class="chip ${(c==='all'?'':c)===state.finderCat?'on':''}" onclick="setFinderCat('${c==='all'?'':c}')">${c==='all'?'All types':c} <span style="opacity:.6">${c==='all'?res.length:res.filter(p=>p.cat===c).length}</span></button>`).join('')}</div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Business</th><th>Category</th><th>Address</th><th>Rating</th><th>Signal</th><th>Score</th><th></th></tr></thead><tbody>
+    ${rows.map(p=>{const i=res.indexOf(p);return `<tr><td><div class="biz"><b>${p.name}</b><small>${p.city||''} · ${p.phone||'no phone'}</small></div></td>
+      <td class="nowrap" style="font-size:12px;color:var(--muted)">${p.cat}</td>
       <td class="nowrap" style="font-size:12px;color:var(--muted)">${p.street||'—'}</td>
       <td class="mono nowrap">★ ${p.rating||'—'} · ${p.reviewCount||0}</td>
       <td>${p.website?'<span style="color:var(--muted);font-size:12px">has site</span>':'<span class="nowww">no website</span>'}</td>
       <td>${scorePill(p.score)}</td>
-      <td><button class="btn ghost" id="add-${i}" onclick="addFromFinder(${i})" style="padding:6px 12px">${ic('plus')} Add</button></td></tr>`).join('')}
+      <td><button class="btn ghost" id="add-${i}" onclick="addFromFinder(${i})" style="padding:6px 12px">${ic('plus')} Add</button></td></tr>`;}).join('')}
     </tbody></table></div>`;
 }
 function addFromFinder(i){
   const p=state.finderResults[i];
   addedProspects.add(p.id);
-  LEADS.push({...p,id:'l_'+p.id+'_'+Date.now(),stage:'new',rep:REPS[Math.floor(Math.random()*REPS.length)].id});
+  LEADS.push({...p,id:'l_'+p.id+'_'+Date.now(),sourceId:p.id,stage:'new',rep:REPS[Math.floor(Math.random()*REPS.length)].id});
   const btn=$('#add-'+i);if(btn)btn.outerHTML='<span style="color:var(--won);font-size:12px;font-weight:600">✓ In CRM</span>';
   updateBadges();
   if(state.view==='areas'&&map)drawMarkers();
@@ -1305,6 +1419,7 @@ function initRouteMap(stops){
   routemap=new google.maps.Map(el,{
     center:{lat:stops[0].lat,lng:stops[0].lng}, zoom:10,
     mapId:GOOGLE_MAP_ID||'DEMO_MAP_ID',
+    renderingType:google.maps.RenderingType.VECTOR,
     colorScheme:mapColorScheme==='dark'?google.maps.ColorScheme.DARK:google.maps.ColorScheme.LIGHT,
     disableDefaultUI:true, clickableIcons:false
   });
@@ -1326,7 +1441,8 @@ function initRouteMap(stops){
 
 /* ========== REPS ========== */
 function renderReps(){
-  $('#v-reps').innerHTML=`<div class="viewhead"><div><div class="t">Sales Reps</div><div class="s">Team performance and territory load</div></div></div>
+  $('#v-reps').innerHTML=`<div class="viewhead"><div><div class="t">Sales Reps</div><div class="s">Team performance and territory load</div></div>
+    <button class="btn" onclick="openRepModal()">${ic('plus','#fff')} Add rep</button></div>
     <div class="repgrid">${REPS.map(r=>{
       const rl=LEADS.filter(l=>l.rep===r.id);
       const won=rl.filter(l=>l.stage==='won');
@@ -1335,7 +1451,8 @@ function renderReps(){
       const pipe=rl.filter(l=>!['won','lost'].includes(l.stage)).reduce((s,l)=>s+l.value,0);
       const load=Math.min(rl.length/8*100,100);
       return `<div class="repcard">
-        <div class="rh"><div class="rav" style="background:${r.color}">${r.init}</div><div class="rn"><b>${r.name}</b><small>${r.area}</small></div></div>
+        <div class="rh"><div class="rav" style="background:${r.color}">${r.init}</div><div class="rn"><b>${r.name}</b><small>${r.area}</small></div>
+          <button class="btn ghost" style="padding:6px 10px;margin-left:auto" title="Edit rep" onclick="openRepModal('${r.id}')">${ic('badge','',14)}</button></div>
         <div class="repstats">
           <div class="rst"><div class="v">${rl.length}</div><div class="l">active leads</div></div>
           <div class="rst"><div class="v">${money(pipe)}</div><div class="l">pipeline</div></div>
@@ -1347,6 +1464,50 @@ function renderReps(){
         <button class="btn ghost" style="width:100%;justify-content:center;margin-top:14px" onclick="state.rep='${r.id}';go('crm')">View ${r.name.split(' ')[0]}'s leads</button>
       </div>`;
     }).join('')}</div>`;
+}
+let _editingRepId=null;
+function openRepModal(id){
+  _editingRepId=id||null;
+  const r=id?repById(id):null;
+  $('#repModalTitle').textContent=r?'Edit rep':'Add rep';
+  $('#repName').value=r?r.name:'';
+  $('#repInit').value=r?r.init:'';
+  $('#repArea').value=r?r.area:'';
+  $('#repColor').value=r?r.color:'#2F6BFF';
+  $('#repModalError').style.display='none';
+  $('#repDeleteBtn').style.display=r?'block':'none';
+  $('#repModal').classList.add('open');
+}
+function closeRepModal(){ $('#repModal').classList.remove('open'); _editingRepId=null; }
+function saveRepModal(){
+  const name=$('#repName').value.trim(), init=$('#repInit').value.trim().toUpperCase()||name.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const area=$('#repArea').value.trim(), color=$('#repColor').value;
+  const err=$('#repModalError');
+  if(!name){err.textContent='Name is required.';err.style.display='block';return;}
+  if(_editingRepId){
+    const r=repById(_editingRepId);
+    Object.assign(r,{name,init,area,color});
+  }else{
+    REPS.push({id:'r_'+Date.now(),name,init,area,color});
+  }
+  closeRepModal();
+  renderRepFilter();
+  render(state.view);
+}
+function deleteRepFromModal(){
+  if(!_editingRepId)return;
+  const r=repById(_editingRepId);
+  const assigned=LEADS.filter(l=>l.rep===_editingRepId).length;
+  if(assigned>0){
+    $('#repModalError').textContent=`Reassign or remove ${r.name}'s ${assigned} lead${assigned===1?'':'s'} before deleting them.`;
+    $('#repModalError').style.display='block';
+    return;
+  }
+  REPS=REPS.filter(x=>x.id!==_editingRepId);
+  if(state.rep===_editingRepId)state.rep='all';
+  closeRepModal();
+  renderRepFilter();
+  render(state.view);
 }
 
 /* ========== AI ASSISTANT ========== */
@@ -1389,7 +1550,13 @@ function aiAnswer(q){
 
 /* ========== INIT ========== */
 document.querySelectorAll('#nav a[data-view]').forEach(a=>a.addEventListener('click',()=>go(a.dataset.view)));
-$('#repfilter').innerHTML='<option value="all">All reps</option>'+REPS.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+function renderRepFilter(){
+  const sel=$('#repfilter'), keep=sel.value;
+  sel.innerHTML='<option value="all">All reps</option>'+REPS.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  sel.value=REPS.some(r=>r.id===keep)?keep:'all';
+  if(sel.value!==keep){state.rep=sel.value;}
+}
+renderRepFilter();
 $('#repfilter').addEventListener('change',e=>{state.rep=e.target.value;render(state.view);});
 $('#globalsearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.toLowerCase();const hit=LEADS.find(l=>l.name.toLowerCase().includes(q));if(hit)openLead(hit.id);}});
 const style=document.createElement('style');style.textContent='@keyframes pulse{0%{box-shadow:0 0 0 3px currentColor}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 3px transparent}}';document.head.appendChild(style);
