@@ -86,6 +86,18 @@
   .confirm-acts{display:flex;gap:10px}
   .confirm-acts .btn{flex:1;justify-content:center}
 
+  /* Login gate */
+  .loginscreen{position:fixed;inset:0;z-index:2000;display:none;align-items:center;justify-content:center;background:var(--ink)}
+  .loginscreen.open{display:flex}
+  .loginbox{width:100%;max-width:340px;padding:28px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.5);text-align:center}
+  .loginbox .brand{justify-content:center;padding:0 0 4px}
+  .loginbox .s{color:var(--muted);font-size:12.5px;margin-bottom:22px}
+  .loginbox .flbl{text-align:left}
+  .loginbox input{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);margin-bottom:12px;font-size:13px;font-family:var(--sans)}
+  .loginerr{color:#F87171;font-size:12px;margin-bottom:12px;text-align:left;line-height:1.4}
+  .dbtoast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#3A1414;border:1px solid rgba(239,68,68,.4);color:#FCA5A5;padding:11px 16px;border-radius:10px;font-size:12.5px;max-width:420px;box-shadow:0 12px 30px rgba(0,0,0,.4);z-index:3000;opacity:0;pointer-events:none;transition:.2s}
+  .dbtoast.show{opacity:1;transform:translate(-50%,0)}
+
   /* KPI cards */
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
   .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
@@ -320,8 +332,10 @@
   .calgrid .ch.corner{background:var(--panel-2)}
   .calgrid .hr{padding:8px 6px;text-align:right;font-size:11px;color:var(--dim);font-family:var(--mono);border-right:1px solid var(--line);border-bottom:1px solid var(--line-soft)}
   .calgrid .cell{border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);min-height:52px;padding:3px;position:relative}
-  .ev{border-radius:7px;padding:6px 8px;font-size:11px;font-weight:600;color:#fff;margin-bottom:3px;cursor:pointer;line-height:1.25}
+  .ev{position:relative;border-radius:7px;padding:6px 8px;font-size:11px;font-weight:600;color:#fff;margin-bottom:3px;cursor:pointer;line-height:1.25}
   .ev small{display:block;font-weight:500;opacity:.85;font-size:10px}
+  .evdel{position:absolute;top:3px;right:3px;width:15px;height:15px;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.3);border-radius:4px;color:#fff}
+  .ev:hover .evdel{display:flex}
 
   /* ---- Routes ---- */
   .routelayout{display:grid;grid-template-columns:360px 1fr;gap:16px;height:calc(100vh - 150px)}
@@ -458,9 +472,28 @@
     #nav a svg{width:22px;height:22px}
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
-<div id="app">
+
+<!-- LOGIN GATE -->
+<div class="loginscreen open" id="loginscreen">
+  <div class="loginbox">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="13" r="11" stroke="#2F6BFF" stroke-width="1.6"/><circle cx="13" cy="4" r="2.4" fill="#4D9FFF"/><circle cx="21" cy="17" r="2.4" fill="#4D9FFF"/><circle cx="5" cy="17" r="2.4" fill="#4D9FFF"/><circle cx="13" cy="13" r="3" fill="#2F6BFF"/><path d="M13 6.4v3.6M18.8 15.6 15.4 13.8M7.2 15.6l3.4-1.8" stroke="#2F6BFF" stroke-width="1.3"/></svg>
+      <b>Lead<span>Grid</span></b>
+    </div>
+    <div class="s">Sign in to continue</div>
+    <div class="flbl">Email</div>
+    <input id="loginEmail" type="email" autocomplete="username" onkeydown="if(event.key==='Enter')$('#loginPassword').focus()">
+    <div class="flbl">Password</div>
+    <input id="loginPassword" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="loginerr" id="loginError" style="display:none"></div>
+    <button class="btn" id="loginBtn" style="width:100%;justify-content:center" onclick="doLogin()">Sign in</button>
+  </div>
+</div>
+
+<div id="app" style="display:none">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="brand">
@@ -482,8 +515,9 @@
       <a onclick="openAI()"><i data-ic="spark"></i><span>AI Assistant</span></a>
     </nav>
     <div class="sidefoot">
-      <div class="av">JA</div>
-      <div><b style="font-size:13px">John Albano</b><small>OmniGrid Digital</small></div>
+      <div class="av" id="sfAvatar">·</div>
+      <div style="min-width:0;flex:1"><b id="sfName" style="font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></b><small id="sfEmail" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></small></div>
+      <button class="rowdel" title="Log out" onclick="sb.auth.signOut()" style="width:auto;padding:0 6px;font-size:11px;font-weight:600">Log out</button>
     </div>
   </aside>
 
@@ -540,6 +574,30 @@
   </div>
 </div>
 
+<!-- MEETING EDITOR -->
+<div class="confirm-wrap" id="meetingModal"><div class="scrim" onclick="closeMeetingModal()"></div>
+  <div class="confirm-box" style="text-align:left;max-width:360px">
+    <div style="font-weight:600;font-size:16px;margin-bottom:16px">New meeting</div>
+    <div class="flbl">Lead</div>
+    <select id="meetLead" onchange="onMeetLeadChange()" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);margin-bottom:12px"></select>
+    <div class="flbl">Rep</div>
+    <select id="meetRep" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);margin-bottom:12px"></select>
+    <div class="flbl">Type</div>
+    <select id="meetType" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);margin-bottom:12px">
+      <option>Call</option><option>Meeting</option><option>Demo</option><option>Follow-up</option>
+    </select>
+    <div style="display:flex;gap:10px">
+      <div style="flex:1"><div class="flbl">Date</div><input id="meetDate" type="date" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);margin-bottom:12px"></div>
+      <div style="flex:1"><div class="flbl">Time</div><select id="meetHour" style="width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);margin-bottom:12px"></select></div>
+    </div>
+    <div id="meetModalError" style="color:#F87171;font-size:12px;margin-bottom:10px;display:none"></div>
+    <div class="confirm-acts">
+      <button class="btn ghost" style="flex:1;justify-content:center" onclick="closeMeetingModal()">Cancel</button>
+      <button class="btn" style="flex:1;justify-content:center" onclick="saveMeetingModal()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- AI -->
 <button class="ai-fab" id="aifab" onclick="openAI()"><i data-ic="spark" data-c="#fff" data-s="22"></i></button>
 <div class="ai-panel" id="aipanel">
@@ -579,11 +637,7 @@ function ic(n,c,s){c=c||'currentColor';s=s||17;const p={
   };return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+((p[n]||'').split(/(?=M)/).map(d=>'<path d="'+d+'"/>').join(''))+'</svg>';}
 
 /* ========== DATA ========== */
-let REPS=[
-  {id:'r1',name:'Zain Khan',init:'ZK',color:'#2F6BFF',area:'Mississauga · Oakville'},
-  {id:'r2',name:'Maya Torres',init:'MT',color:'#22C55E',area:'North York · Vaughan'},
-  {id:'r3',name:'Devon Reid',init:'DR',color:'#A855F7',area:'Downtown · Scarborough'},
-];
+let REPS=[]; // loaded from Supabase at login — see loadAllData()
 const STAGES=[
   {id:'new',name:'New',color:'#7C8AA0'},{id:'contacted',name:'Contacted',color:'#F5A524'},
   {id:'qualified',name:'Qualified',color:'#4D9FFF'},{id:'proposal',name:'Proposal',color:'#A855F7'},
@@ -674,6 +728,9 @@ let livePool=[];              // businesses fetched live from Google Places
 const envVal=v=>(v&&!v.startsWith('%'))?v:'';  // Vite leaves %KEY% untouched if the env var isn't set
 let GOOGLE_KEY=localStorage.getItem('lg_google_key')||envVal('%VITE_GOOGLE_API_KEY%');       // Maps JS key — client-side by necessity, protected by HTTP referrer restriction
 let GOOGLE_MAP_ID=localStorage.getItem('lg_google_mapid')||envVal('%VITE_GOOGLE_MAP_ID%');  // optional; falls back to DEMO_MAP_ID or .env.local
+const SUPABASE_URL=envVal('%VITE_SUPABASE_URL%');
+const SUPABASE_ANON_KEY=envVal('%VITE_SUPABASE_ANON_KEY%');
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);  // anon key is safe client-side — every table is RLS-gated to "authenticated only"
 function saveGoogleCreds(key,mapId){
   GOOGLE_KEY=(key||'').trim();
   GOOGLE_MAP_ID=(mapId||'').trim();
@@ -684,11 +741,89 @@ const prospectById=id=>POOL.find(p=>p.id===id)||livePool.find(p=>p.id===id);
 
 const EVENTS=[];
 
-let state={view:'areas',rep:'all',finderCat:'',finderArea:'',finderResults:[],finderAdded:new Set()};
+/* ========== SUPABASE DATA LAYER ==========
+   LEADS/REPS/EVENTS stay as plain in-memory arrays (every render function already reads them
+   that way) — this layer just keeps them synced with Supabase. Mutations update the array and
+   re-render immediately (unchanged, no added latency), then persist in the background; a failed
+   write surfaces via dbError() instead of silently vanishing. No rollback-on-failure or realtime
+   multi-tab sync — this is a single-owner tool, not worth the complexity. */
+function dbError(msg){
+  console.error(msg);
+  let t=$('#dbtoast');
+  if(!t){t=document.createElement('div');t.id='dbtoast';t.className='dbtoast';document.body.appendChild(t);}
+  t.textContent=msg;
+  t.classList.add('show');
+  clearTimeout(t._hideTimer);
+  t._hideTimer=setTimeout(()=>t.classList.remove('show'),5000);
+}
+function dbLeadToClient(row){
+  return{id:row.id,sourceId:row.source_id,name:row.name,cat:row.cat,city:row.city,
+    province:row.province,postal:row.postal,street:row.street,address:row.address,
+    lat:row.lat,lng:row.lng,phone:row.phone,website:row.website,web:row.web,
+    rating:row.rating,reviewCount:row.review_count,value:row.value,email:row.email,
+    socials:row.socials||{},reviews:row.reviews||[],hot:row.hot,score:row.score,
+    stage:row.stage,rep:row.rep_id,
+    _enrichChecked:row.enrich_checked,_enrichOk:row.enrich_ok,_enrichNote:row.enrich_note,
+    createdAt:row.created_at,updatedAt:row.updated_at};
+}
+function clientLeadToDb(l){
+  return{id:l.id,source_id:l.sourceId||null,name:l.name,cat:l.cat,city:l.city,
+    province:l.province,postal:l.postal,street:l.street,address:l.address,
+    lat:l.lat,lng:l.lng,phone:l.phone,website:!!l.website,web:l.web,
+    rating:l.rating,review_count:l.reviewCount,value:l.value,email:l.email,
+    socials:l.socials||{},reviews:l.reviews||[],hot:!!l.hot,score:l.score,
+    stage:l.stage,rep_id:l.rep||null,
+    enrich_checked:!!l._enrichChecked,enrich_ok:l._enrichOk==null?null:!!l._enrichOk,enrich_note:l._enrichNote||null};
+}
+function dbEventToClient(row){
+  return{id:row.id,leadId:row.lead_id,repId:row.rep_id,type:row.type,startsAt:new Date(row.starts_at),durationMinutes:row.duration_minutes};
+}
+function clientEventToDb(e){
+  return{lead_id:e.leadId,rep_id:e.repId,type:e.type,starts_at:e.startsAt.toISOString(),duration_minutes:e.durationMinutes||30};
+}
+async function loadAllData(){
+  try{
+    const[repsRes,leadsRes,eventsRes]=await Promise.all([
+      sb.from('reps').select('*').order('created_at'),
+      sb.from('leads').select('*').order('created_at'),
+      sb.from('events').select('*').order('starts_at'),
+    ]);
+    if(repsRes.error)throw repsRes.error;
+    if(leadsRes.error)throw leadsRes.error;
+    if(eventsRes.error)throw eventsRes.error;
+    REPS.length=0;REPS.push(...repsRes.data);
+    LEADS.length=0;LEADS.push(...leadsRes.data.map(dbLeadToClient));
+    EVENTS.length=0;EVENTS.push(...eventsRes.data.map(dbEventToClient));
+    addedProspects.clear();
+    LEADS.forEach(l=>{if(l.sourceId)addedProspects.add(l.sourceId);});
+  }catch(err){
+    dbError('Failed to load your data — '+err.message);
+  }
+}
+// Attaches the current session's access token so the api/* proxies (which spend real API
+// budget) can verify the caller is actually logged in — see api/lib/requireAuth.js.
+async function apiFetch(url,opts){
+  opts=opts||{};
+  const{data}=await sb.auth.getSession();
+  const token=data&&data.session&&data.session.access_token;
+  opts.headers=Object.assign({},opts.headers,token?{Authorization:'Bearer '+token}:{});
+  return fetch(url,opts);
+}
+
+let state={view:'areas',rep:'all',finderCat:'',finderArea:'',finderResults:[],finderAdded:new Set(),calWeekOffset:0};
 
 /* ========== HELPERS ========== */
 const $=s=>document.querySelector(s);
 const money=n=>'$'+n.toLocaleString();
+function timeAgo(dateStr){
+  if(!dateStr)return'';
+  const mins=Math.floor((Date.now()-new Date(dateStr).getTime())/60000);
+  if(mins<1)return'just now';
+  if(mins<60)return mins+'m ago';
+  const hrs=Math.floor(mins/60);
+  if(hrs<24)return hrs+'h ago';
+  return Math.floor(hrs/24)+'d ago';
+}
 const leadById=id=>LEADS.find(l=>l.id===id);
 const repById=id=>REPS.find(r=>r.id===id);
 const visibleLeads=()=>state.rep==='all'?LEADS:LEADS.filter(l=>l.rep===state.rep);
@@ -723,20 +858,25 @@ function renderDash(){
   const wonVal=won.reduce((s,l)=>s+l.value,0);
   const closed=ls.filter(l=>['won','lost'].includes(l.stage)).length;
   const conv=closed?Math.round(won.length/closed*100):0;
-  const meetings=EVENTS.filter(e=>state.rep==='all'||e.rep===state.rep).length;
+  const meetings=EVENTS.filter(e=>state.rep==='all'||e.repId===state.rep).length;
   const noWww=ls.filter(l=>!l.website).length;
 
   const counts=STAGES.map(s=>({s,n:ls.filter(l=>l.stage===s.id).length}));
   const maxc=Math.max(...counts.map(c=>c.n),1);
 
-  const feed=[];
+  // Real recent activity, derived from actual lead timestamps — no dedicated audit-log table needed.
+  const feed=[...ls].filter(l=>l.createdAt||l.updatedAt).sort((a,b)=>new Date(b.updatedAt||b.createdAt)-new Date(a.updatedAt||a.createdAt)).slice(0,8).map(l=>{
+    const s=stageOf(l.stage),r=repById(l.rep);
+    const isNew=!l.updatedAt||l.updatedAt===l.createdAt;
+    return{t:`${l.name} ${isNew?'added to pipeline':'moved to '+s.name}`,c:s.color,by:r?r.name:'Unassigned',ago:timeAgo(l.updatedAt||l.createdAt)};
+  });
 
   $('#v-dashboard').innerHTML=`
-    <div class="viewhead"><div><div class="t">Good morning, John</div><div class="s">${open.length} open leads across the GTA · ${money(pipeVal)} in play</div></div>
+    <div class="viewhead"><div><div class="t">Good morning, ${cap(currentUserName)}</div><div class="s">${open.length} open leads across the GTA · ${money(pipeVal)} in play</div></div>
     <button class="btn" onclick="go('finder')">${ic('plus','#fff')} Find new leads</button></div>
     <div class="kpis">
-      <div class="kpi"><div class="lab">Open pipeline</div><div class="val">${money(pipeVal)}</div><div class="delta up">▲ 18% vs last week</div></div>
-      <div class="kpi"><div class="lab">Won this month</div><div class="val">${money(wonVal)} <small>/ ${won.length} deals</small></div><div class="delta up">▲ 2 new</div></div>
+      <div class="kpi"><div class="lab">Open pipeline</div><div class="val">${money(pipeVal)}</div></div>
+      <div class="kpi"><div class="lab">Won this month</div><div class="val">${money(wonVal)} <small>/ ${won.length} deals</small></div></div>
       <div class="kpi"><div class="lab">Win rate</div><div class="val">${conv}%</div><div class="delta ${conv>=50?'up':'down'}">${conv>=50?'▲ healthy':'▼ needs work'}</div></div>
       <div class="kpi"><div class="lab">No-website leads</div><div class="val">${noWww}</div><div class="delta up">high-intent</div></div>
     </div>
@@ -885,7 +1025,7 @@ function openLead(id){
       ${aiScaffold()}
       <div class="dsec"><div class="st">Stage &amp; actions</div>
         <div class="stageflow">${STAGES.filter(s=>s.id!=='lost').map(s=>`<button class="${l.stage===s.id?'on':''}" style="${l.stage===s.id?'background:'+s.color+';border-color:'+s.color:''}" onclick="setStage('${l.id}','${s.id}')">${s.name}</button>`).join('')}</div>
-        <div class="dacts"><button class="btn" onclick="alert('Dialing ${l.phone} via Quo…')">${ic('phone','#fff')} Call</button><button class="btn ghost" onclick="addToRoute('${l.id}')">${ic('route')} Add to route</button></div>
+        <div class="dacts"><button class="btn" onclick="window.location.href='tel:${(l.phone||'').replace(/[^\d+]/g,'')}'"${l.phone?'':' disabled style="opacity:.5;cursor:not-allowed"'}>${ic('phone','#fff')} Call</button><button class="btn ghost" onclick="addToRoute('${l.id}')">${ic('route')} Add to route</button></div>
       </div>
       <div class="dsec"><div class="st">Details</div>
         <div class="kv2">
@@ -914,10 +1054,15 @@ function deleteLead(id){
   // if this lead came from a map prospect or a Lead Finder search, free it so it can resurface
   if(LEADS[i].sourceId)addedProspects.delete(LEADS[i].sourceId);
   LEADS.splice(i,1);
+  for(let j=EVENTS.length-1;j>=0;j--){if(EVENTS[j].leadId===id)EVENTS.splice(j,1);} // DB cascades the row; array doesn't auto-sync
   closeDrawer(); updateBadges();
   if(state.view==='areas'&&map){drawMarkers();} else {render(state.view);}
+  sb.from('leads').delete().eq('id',id).then(({error})=>{if(error)dbError('Failed to delete lead — '+error.message);});
 }
-function setStage(id,stage){leadById(id).stage=stage;openLead(id);render(state.view);}
+function setStage(id,stage){
+  const l=leadById(id); l.stage=stage; openLead(id); render(state.view);
+  sb.from('leads').update({stage}).eq('id',id).then(({error})=>{if(error)dbError('Failed to save stage change — '+error.message);});
+}
 function addToRoute(id){closeDrawer();const l=leadById(id);state.rep=l.rep;go('routes');setTimeout(()=>alert(l.name+' added to '+repById(l.rep).name+"'s route"),120);}
 
 /* ========== GOOGLE MAPS LOADER ========== */
@@ -1062,7 +1207,7 @@ function drawSearchRadius(lat,lng,radius){
 async function geocodeLocation(address){
   // Proxied server-side (see /api/geocode) rather than using google.maps.Geocoder client-side,
   // since that would need the Geocoding API enabled on the same key the Maps JS script loads with.
-  const res=await fetch('/api/geocode?address='+encodeURIComponent(address));
+  const res=await apiFetch('/api/geocode?address='+encodeURIComponent(address));
   const data=await res.json().catch(()=>({}));
   if(!res.ok)throw new Error(data.error||(res.status+' '+res.statusText));
   return data;
@@ -1193,6 +1338,11 @@ function showBizPanel(kind,id,marker){
   if(pending)reEnrich(kind,id);
 }
 function closeBizPanel(){if(bizInfoWindow)bizInfoWindow.close();}
+function persistEnrich(kind,id,b){
+  if(kind!=='lead')return; // prospects are pre-CRM and never touch Supabase
+  sb.from('leads').update({socials:b.socials||{},enrich_checked:true,enrich_ok:b._enrichOk,enrich_note:b._enrichNote}).eq('id',id)
+    .then(({error})=>{if(error)dbError('Failed to save enrichment — '+error.message);});
+}
 async function reEnrich(kind,id){
   const b=kind==='lead'?leadById(id):prospectById(id);
   if(!b)return;
@@ -1202,11 +1352,12 @@ async function reEnrich(kind,id){
   if(note)note.innerHTML=ic('spark','#A855F7',12)+' '+(b.web?'Scraping '+b.web.replace('https://',''):'Searching for '+b.name)+'…';
   try{
     const qs=new URLSearchParams({url:b.web||'',name:b.name||'',city:b.city||''});
-    const res=await fetch('/api/socials?'+qs.toString());
+    const res=await apiFetch('/api/socials?'+qs.toString());
     const data=await res.json();
     if(data.error){
       b._enrichOk=false; b._enrichNote=data.error;
       if(note)note.innerHTML=ic('link','#5C6E8A',12)+' '+data.error+' · '+relink;
+      persistEnrich(kind,id,b);
       return;
     }
     b.socials=b.socials||{};
@@ -1219,20 +1370,29 @@ async function reEnrich(kind,id){
     if(document.getElementById('bizpopup'))showBizPanel(kind,id); // re-render with the new socials + note
     else if(note)note.innerHTML=ic('check','#22C55E',12)+' '+b._enrichNote+' · '+relink;
     if(state.view==='crm')renderCRM();
+    persistEnrich(kind,id,b);
   }catch(err){
     b._enrichOk=false; b._enrichNote='Scrape failed — '+err.message;
     if(note)note.innerHTML=ic('link','#5C6E8A',12)+' Scrape failed — '+err.message+' · '+relink;
+    persistEnrich(kind,id,b);
   }
+}
+// least-loaded rep gets each new lead — shared by every place a prospect becomes a CRM lead
+function pickRepForNewLead(){
+  if(!REPS.length)return null;
+  return REPS.reduce((best,r)=>{const n=LEADS.filter(l=>l.rep===r.id).length;return n<best.n?{r,n}:best;},{r:REPS[0],n:1e9}).r;
 }
 function addProspectToCRM(pid){
   const p=prospectById(pid);if(!p)return;
+  const rep=pickRepForNewLead();
+  if(!rep){dbError('Add a rep before adding leads to your CRM — see the Reps tab.');return;}
   addedProspects.add(pid);
-  const rep=REPS.reduce((best,r)=>{const n=LEADS.filter(l=>l.rep===r.id).length;return n<best.n?{r,n}:best;},{r:REPS[0],n:1e9}).r;
   const nl={...p,id:'l_'+pid+'_'+Date.now(),sourceId:pid,stage:'new',rep:rep.id};
   LEADS.push(nl);
   updateBadges();
   drawMarkers();
   showBizPanel('lead',nl.id);
+  sb.from('leads').insert(clientLeadToDb(nl)).then(({error})=>{if(error)dbError('Failed to save lead — '+error.message);});
 }
 
 /* ========== LEAD FINDER ========== */
@@ -1270,7 +1430,7 @@ function renderFinder(){
 // Places-capable key server-side only, unlike the Maps JavaScript API key (unavoidably client-side
 // since it loads as a <script> tag, protected only by its HTTP referrer restriction instead).
 async function searchPlaces(textQuery,near){
-  const res=await fetch('/api/places-search',{
+  const res=await apiFetch('/api/places-search',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({textQuery,near})
@@ -1373,33 +1533,94 @@ function renderFinderResults(res,area){
 }
 function addFromFinder(i){
   const p=state.finderResults[i];
+  const rep=pickRepForNewLead();
+  if(!rep){dbError('Add a rep before adding leads to your CRM — see the Reps tab.');return;}
   addedProspects.add(p.id);
-  LEADS.push({...p,id:'l_'+p.id+'_'+Date.now(),sourceId:p.id,stage:'new',rep:REPS[Math.floor(Math.random()*REPS.length)].id});
+  const nl={...p,id:'l_'+p.id+'_'+Date.now(),sourceId:p.id,stage:'new',rep:rep.id};
+  LEADS.push(nl);
   const btn=$('#add-'+i);if(btn)btn.outerHTML='<span style="color:var(--won);font-size:12px;font-weight:600">✓ In CRM</span>';
   updateBadges();
   if(state.view==='areas'&&map)drawMarkers();
+  sb.from('leads').insert(clientLeadToDb(nl)).then(({error})=>{if(error)dbError('Failed to save lead — '+error.message);});
 }
 
 /* ========== CALENDAR ========== */
+function mondayOf(offsetWeeks){
+  const now=new Date();
+  const diffToMonday=now.getDay()===0?-6:1-now.getDay();
+  const monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()+diffToMonday+offsetWeeks*7);
+  monday.setHours(0,0,0,0);
+  return monday;
+}
+const sameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
 function renderCal(){
-  const days=['Mon','Tue','Wed','Thu','Fri'];
-  const dates=['Jul 7','Jul 8','Jul 9','Jul 10','Jul 11'];
   const hours=[9,10,11,12,13,14,15,16];
-  const evs=EVENTS.filter(e=>state.rep==='all'||e.rep===state.rep);
+  const dayLabels=['Mon','Tue','Wed','Thu','Fri'];
+  const monday=mondayOf(state.calWeekOffset);
+  const weekDates=[0,1,2,3,4].map(i=>{const d=new Date(monday);d.setDate(monday.getDate()+i);return d;});
+  const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const evs=EVENTS.filter(e=>(state.rep==='all'||e.repId===state.rep)&&weekDates.some(d=>sameDay(e.startsAt,d)));
   let cells='';
-  cells+='<div class="ch corner"></div>'+days.map((d,i)=>`<div class="ch">${d}<small>${dates[i]}</small></div>`).join('');
+  cells+='<div class="ch corner"></div>'+weekDates.map((d,i)=>`<div class="ch">${dayLabels[i]}<small>${fmt(d)}</small></div>`).join('');
   hours.forEach(h=>{
     cells+=`<div class="hr">${h}:00</div>`;
-    for(let d=1;d<=5;d++){
-      const e=evs.find(x=>x.day===d&&x.hour===h);
-      let ev='';
-      if(e){const l=leadById(e.lead),r=repById(e.rep);ev=`<div class="ev" style="background:${r.color}" onclick="openLead('${e.lead}')">${e.type}<small>${l.name}</small></div>`;}
-      cells+=`<div class="cell">${ev}</div>`;
-    }
+    weekDates.forEach(d=>{
+      const dayEvents=evs.filter(e=>sameDay(e.startsAt,d)&&e.startsAt.getHours()===h);
+      const evHtml=dayEvents.map(e=>{
+        const l=leadById(e.leadId),r=repById(e.repId);
+        if(!l||!r)return'';
+        return`<div class="ev" style="background:${r.color}" onclick="openLead('${e.leadId}')">
+          <button class="evdel" onclick="event.stopPropagation();askDeleteMeeting('${e.id}')" title="Delete meeting">${ic('x','',10)}</button>
+          ${e.type}<small>${l.name}</small></div>`;
+      }).join('');
+      cells+=`<div class="cell">${evHtml}</div>`;
+    });
   });
-  $('#v-calendar').innerHTML=`<div class="viewhead"><div><div class="t">Calendar</div><div class="s">This week · ${evs.length} meetings scheduled</div></div>
-    <button class="btn ghost">${ic('plus')} New meeting</button></div>
+  const weekLabel=state.calWeekOffset===0?'This week':fmt(weekDates[0])+' – '+fmt(weekDates[4]);
+  $('#v-calendar').innerHTML=`<div class="viewhead"><div><div class="t">Calendar</div><div class="s">${weekLabel} · ${evs.length} meeting${evs.length===1?'':'s'} scheduled</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn ghost" style="padding:8px 12px" onclick="state.calWeekOffset--;renderCal()">‹</button>
+      <button class="btn ghost" style="padding:8px 14px;font-size:12px" onclick="state.calWeekOffset=0;renderCal()">Today</button>
+      <button class="btn ghost" style="padding:8px 12px" onclick="state.calWeekOffset++;renderCal()">›</button>
+      <button class="btn" onclick="openMeetingModal()">${ic('plus')} New meeting</button>
+    </div></div>
     <div class="calwrap"><div class="calgrid">${cells}</div></div>`;
+}
+function openMeetingModal(){
+  const open=LEADS.filter(l=>!['won','lost'].includes(l.stage));
+  if(!open.length){dbError('Add a lead before scheduling a meeting.');return;}
+  if(!REPS.length){dbError('Add a rep before scheduling a meeting — see the Reps tab.');return;}
+  $('#meetLead').innerHTML=open.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  $('#meetRep').innerHTML=REPS.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  $('#meetHour').innerHTML=[9,10,11,12,13,14,15,16].map(h=>`<option value="${h}">${h}:00</option>`).join('');
+  $('#meetDate').value=new Date().toISOString().slice(0,10);
+  $('#meetModalError').style.display='none';
+  onMeetLeadChange();
+  $('#meetingModal').classList.add('open');
+}
+function onMeetLeadChange(){const l=leadById($('#meetLead').value);if(l)$('#meetRep').value=l.rep;}
+function closeMeetingModal(){$('#meetingModal').classList.remove('open');}
+function saveMeetingModal(){
+  const leadId=$('#meetLead').value,repId=$('#meetRep').value,type=$('#meetType').value;
+  const dateStr=$('#meetDate').value,hour=+$('#meetHour').value;
+  const err=$('#meetModalError');
+  if(!leadId||!repId||!dateStr){err.textContent='Fill in every field.';err.style.display='block';return;}
+  const[y,m,d]=dateStr.split('-').map(Number);
+  const ev={id:'e_'+Date.now(),leadId,repId,type,startsAt:new Date(y,m-1,d,hour,0,0,0),durationMinutes:30};
+  EVENTS.push(ev);
+  closeMeetingModal();
+  renderCal();
+  sb.from('events').insert(clientEventToDb(ev)).select().single().then(({data,error})=>{
+    if(error){dbError('Failed to save meeting — '+error.message);return;}
+    ev.id=data.id; // swap the temp client-side id for the real DB-generated uuid
+  });
+}
+function askDeleteMeeting(id){openConfirm('Delete this meeting? This can’t be undone.',()=>deleteMeeting(id));}
+function deleteMeeting(id){
+  const i=EVENTS.findIndex(e=>e.id===id); if(i<0)return;
+  EVENTS.splice(i,1);
+  renderCal();
+  sb.from('events').delete().eq('id',id).then(({error})=>{if(error)dbError('Failed to delete meeting — '+error.message);});
 }
 
 /* ========== ROUTES ========== */
@@ -1510,35 +1731,44 @@ function saveRepModal(){
   const area=$('#repArea').value.trim(), color=$('#repColor').value;
   const err=$('#repModalError');
   if(!name){err.textContent='Name is required.';err.style.display='block';return;}
+  let rep;
   if(_editingRepId){
-    const r=repById(_editingRepId);
-    Object.assign(r,{name,init,area,color});
+    rep=repById(_editingRepId);
+    Object.assign(rep,{name,init,area,color});
   }else{
-    REPS.push({id:'r_'+Date.now(),name,init,area,color});
+    rep={id:'r_'+Date.now(),name,init,area,color};
+    REPS.push(rep);
   }
   closeRepModal();
   renderRepFilter();
   render(state.view);
+  sb.from('reps').upsert(rep).then(({error})=>{if(error)dbError('Failed to save rep — '+error.message);});
 }
 function deleteRepFromModal(){
   if(!_editingRepId)return;
   const r=repById(_editingRepId);
-  const assigned=LEADS.filter(l=>l.rep===_editingRepId).length;
-  if(assigned>0){
-    $('#repModalError').textContent=`Reassign or remove ${r.name}'s ${assigned} lead${assigned===1?'':'s'} before deleting them.`;
+  const assignedLeads=LEADS.filter(l=>l.rep===_editingRepId).length;
+  const assignedEvents=EVENTS.filter(e=>e.repId===_editingRepId).length;
+  if(assignedLeads>0||assignedEvents>0){
+    const parts=[];
+    if(assignedLeads>0)parts.push(`${assignedLeads} lead${assignedLeads===1?'':'s'}`);
+    if(assignedEvents>0)parts.push(`${assignedEvents} meeting${assignedEvents===1?'':'s'}`);
+    $('#repModalError').textContent=`Reassign or remove ${r.name}'s ${parts.join(' and ')} before deleting them.`;
     $('#repModalError').style.display='block';
     return;
   }
-  REPS=REPS.filter(x=>x.id!==_editingRepId);
-  if(state.rep===_editingRepId)state.rep='all';
+  const id=_editingRepId;
+  REPS=REPS.filter(x=>x.id!==id);
+  if(state.rep===id)state.rep='all';
   closeRepModal();
   renderRepFilter();
   render(state.view);
+  sb.from('reps').delete().eq('id',id).then(({error})=>{if(error)dbError('Failed to delete rep — '+error.message);});
 }
 
 /* ========== AI ASSISTANT ========== */
 const AI_SUGG=['Top leads to call today','Which rep is underloaded?','Summarize Mississauga','No-website opportunities'];
-function openAI(){$('#aipanel').classList.add('open');$('#aifab').style.display='none';if(!$('#aibody').dataset.init){aiBot("Hey John — I can see your live pipeline. Ask me who to call, where the gaps are, or to summarize an area.");renderSugg();$('#aibody').dataset.init=1;}}
+function openAI(){$('#aipanel').classList.add('open');$('#aifab').style.display='none';if(!$('#aibody').dataset.init){aiBot(`Hey ${cap(currentUserName)} — I can see your live pipeline. Ask me who to call, where the gaps are, or to summarize an area.`);renderSugg();$('#aibody').dataset.init=1;}}
 function closeAI(){$('#aipanel').classList.remove('open');$('#aifab').style.display='grid';}
 function renderSugg(){$('#aisugg').innerHTML=AI_SUGG.map(s=>`<button onclick="aiSend('${s}')">${s}</button>`).join('');}
 function aiBot(html){const d=document.createElement('div');d.className='msg bot';d.innerHTML=html;$('#aibody').appendChild(d);$('#aibody').scrollTop=1e6;}
@@ -1558,10 +1788,16 @@ function aiAnswer(q){
     const load=REPS.map(r=>({r,n:LEADS.filter(l=>l.rep===r.id&&!['won','lost'].includes(l.stage)).length})).sort((a,b)=>a.n-b.n);
     return `<b>Rep capacity</b> — lightest load first:${load.map(x=>`<div class="mrow2"><span>${x.r.name}</span><span>${x.n} open</span></div>`).join('')}<div style="margin-top:8px;color:var(--muted)">${load[0].r.name.split(' ')[0]} has room — route the next batch there.</div>`;
   }
-  if(q.includes('mississauga')||q.includes('summar')||q.includes('area')){
-    const area=ls.filter(l=>['Mississauga','Oakville'].includes(l.city));
+  if(q.includes('summar')||q.includes('area')||ls.some(l=>l.city&&q.includes(l.city.toLowerCase()))){
+    const cities=[...new Set(ls.map(l=>l.city).filter(Boolean))];
+    if(!cities.length)return `You don't have any leads yet — add some from the Map or Lead Finder and I can summarize an area for you.`;
+    const named=cities.filter(c=>q.includes(c.toLowerCase()));
+    const targetCities=named.length?named:cities; // no city named — summarize everything you've got
+    const area=ls.filter(l=>targetCities.includes(l.city));
     const val=area.reduce((s,l)=>s+l.value,0);const noweb=area.filter(l=>!l.website).length;
-    return `<b>Mississauga + Oakville</b><div class="mrow2"><span>Leads</span><span>${area.length}</span></div><div class="mrow2"><span>Pipeline</span><span>${money(val)}</span></div><div class="mrow2"><span>No-website</span><span>${noweb}</span></div><div class="mrow2"><span>Owner</span><span>Zain Khan</span></div><div style="margin-top:8px;color:var(--muted)">9 Natural Nails is at proposal — closest to closing.</div>`;
+    const load=REPS.map(r=>({r,n:area.filter(l=>l.rep===r.id).length})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n);
+    const closest=area.filter(l=>l.stage==='proposal').sort((a,b)=>b.value-a.value)[0];
+    return `<b>${targetCities.join(' + ')}</b><div class="mrow2"><span>Leads</span><span>${area.length}</span></div><div class="mrow2"><span>Pipeline</span><span>${money(val)}</span></div><div class="mrow2"><span>No-website</span><span>${noweb}</span></div>${load.length?`<div class="mrow2"><span>Most leads here</span><span>${load[0].r.name}</span></div>`:''}<div style="margin-top:8px;color:var(--muted)">${closest?closest.name+' is at proposal — closest to closing.':'Nothing at proposal stage here yet.'}</div>`;
   }
   if(q.includes('website')||q.includes('no-website')||q.includes('opportun')){
     const nw=ls.filter(l=>!l.website&&!['won','lost'].includes(l.stage)).sort((a,b)=>b.value-a.value).slice(0,5);
@@ -1582,14 +1818,56 @@ function renderRepFilter(){
   sel.value=REPS.some(r=>r.id===keep)?keep:'all';
   if(sel.value!==keep){state.rep=sel.value;}
 }
-renderRepFilter();
 $('#repfilter').addEventListener('change',e=>{state.rep=e.target.value;render(state.view);});
 $('#globalsearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.toLowerCase();const hit=LEADS.find(l=>l.name.toLowerCase().includes(q));if(hit)openLead(hit.id);}});
 const style=document.createElement('style');style.textContent='@keyframes pulse{0%{box-shadow:0 0 0 3px currentColor}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 3px transparent}}';document.head.appendChild(style);
 // fill static icon placeholders
 let _rz;window.addEventListener('resize',()=>{clearTimeout(_rz);_rz=setTimeout(()=>{map&&nudgeMap(map);routemap&&nudgeMap(routemap);},200);});
 document.querySelectorAll('[data-ic]').forEach(el=>{el.outerHTML=ic(el.dataset.ic,el.dataset.c,el.dataset.s?+el.dataset.s:undefined);});
-go('areas');
+
+/* ========== AUTH GATE ========== */
+let currentUserName='there';
+const cap=s=>s?s[0].toUpperCase()+s.slice(1):s;
+function displayName(user){
+  if(!user)return'';
+  return (user.user_metadata&&user.user_metadata.full_name)||(user.email||'').split('@')[0]||'there';
+}
+function updateSidebarIdentity(user){
+  const name=displayName(user);
+  currentUserName=name;
+  $('#sfName').textContent=name;
+  $('#sfEmail').textContent=user.email||'';
+  $('#sfAvatar').textContent=name.slice(0,2).toUpperCase();
+}
+function showLogin(){$('#loginscreen').classList.add('open');$('#app').style.display='none';}
+function hideLogin(){$('#loginscreen').classList.remove('open');$('#app').style.display='';}
+async function doLogin(){
+  const email=$('#loginEmail').value.trim(), password=$('#loginPassword').value;
+  const btn=$('#loginBtn'), err=$('#loginError');
+  err.style.display='none';
+  if(!email||!password){err.textContent='Enter your email and password.';err.style.display='block';return;}
+  btn.disabled=true;btn.style.opacity=.6;btn.textContent='Signing in…';
+  const{error}=await sb.auth.signInWithPassword({email,password});
+  btn.disabled=false;btn.style.opacity=1;btn.textContent='Sign in';
+  if(error){err.textContent=error.message||'Sign in failed.';err.style.display='block';}
+}
+let _appReady=false;
+sb.auth.onAuthStateChange(async(event,session)=>{
+  if(session&&session.user){
+    updateSidebarIdentity(session.user);
+    if(_appReady)return;                // ignore token-refresh events once already booted
+    _appReady=true;
+    hideLogin();
+    await loadAllData();
+    renderRepFilter();
+    go('areas');
+  }else{
+    _appReady=false;
+    LEADS.length=0;REPS.length=0;EVENTS.length=0;
+    $('#loginEmail').value='';$('#loginPassword').value='';
+    showLogin();
+  }
+});
 </script>
 </body>
 </html>

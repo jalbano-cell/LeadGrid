@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import { fetchSocialsFor } from './api/lib/extractSocials.js';
 import { searchPlacesText } from './api/lib/placesSearch.js';
 import { geocodeAddress } from './api/lib/geocode.js';
+import { requireAuth } from './api/lib/requireAuth.js';
 
 function readJsonBody(req) {
   return new Promise((resolve) => {
@@ -20,12 +21,19 @@ function backendApiPlugin() {
     name: 'leadgrid-backend-api',
     configureServer(server) {
       server.middlewares.use('/api/socials', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        try {
+          await requireAuth(req);
+        } catch (err) {
+          res.statusCode = err.status || 401;
+          res.end(JSON.stringify({ error: err.message }));
+          return;
+        }
         const params = new URL(req.url, 'http://localhost').searchParams;
         const url = params.get('url') || '';
         const name = params.get('name') || '';
         const city = params.get('city') || '';
         const result = await fetchSocialsFor({ url, name, city });
-        res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(result));
       });
 
@@ -35,8 +43,15 @@ function backendApiPlugin() {
           res.end(JSON.stringify({ error: 'POST only' }));
           return;
         }
-        const body = await readJsonBody(req);
         res.setHeader('Content-Type', 'application/json');
+        try {
+          await requireAuth(req);
+        } catch (err) {
+          res.statusCode = err.status || 401;
+          res.end(JSON.stringify({ error: err.message }));
+          return;
+        }
+        const body = await readJsonBody(req);
         try {
           const places = await searchPlacesText(body);
           res.end(JSON.stringify({ places }));
@@ -47,8 +62,15 @@ function backendApiPlugin() {
       });
 
       server.middlewares.use('/api/geocode', async (req, res) => {
-        const params = new URL(req.url, 'http://localhost').searchParams;
         res.setHeader('Content-Type', 'application/json');
+        try {
+          await requireAuth(req);
+        } catch (err) {
+          res.statusCode = err.status || 401;
+          res.end(JSON.stringify({ error: err.message }));
+          return;
+        }
+        const params = new URL(req.url, 'http://localhost').searchParams;
         try {
           const result = await geocodeAddress(params.get('address') || '');
           res.end(JSON.stringify(result));
@@ -70,6 +92,8 @@ export default defineConfig(({ mode }) => {
   if (env.TAVILY_API_KEY) process.env.TAVILY_API_KEY = env.TAVILY_API_KEY;
   if (env.GOOGLE_PLACES_API_KEY) process.env.GOOGLE_PLACES_API_KEY = env.GOOGLE_PLACES_API_KEY;
   if (env.VITE_GOOGLE_API_KEY) process.env.VITE_GOOGLE_API_KEY = env.VITE_GOOGLE_API_KEY;
+  if (env.VITE_SUPABASE_URL) process.env.VITE_SUPABASE_URL = env.VITE_SUPABASE_URL;
+  if (env.VITE_SUPABASE_ANON_KEY) process.env.VITE_SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY;
 
   return {
     plugins: [backendApiPlugin()],
