@@ -168,10 +168,18 @@
   /* ---- Map view ---- */
   .maplayout{position:relative;height:100%}
   #map{height:100%;width:100%;min-height:340px;background:var(--ink)}
-  .mapsearch-panel{position:absolute;right:14px;top:14px;z-index:2;width:280px;max-height:calc(100% - 28px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:flex;flex-direction:column;padding:16px;gap:10px}
+  .mapsearch-panel{position:absolute;right:14px;top:14px;z-index:2;width:280px;max-height:calc(100% - 28px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:flex;flex-direction:column;padding:16px;gap:10px;transition:width .15s,padding .15s}
   .mapsearch-panel .ph{margin-bottom:2px}
+  .mapsearch-panel .ph-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .mapsearch-panel .ph .t{font-family:var(--disp);font-size:15px;font-weight:600}
   .mapsearch-panel .ph .s{color:var(--muted);font-size:11.5px;margin-top:3px;line-height:1.4}
+  .msf-collapse{flex:none;width:26px;height:26px;display:grid;place-items:center;background:transparent;border:1px solid var(--line);border-radius:7px;color:var(--muted);cursor:pointer}
+  .msf-collapse svg{transition:transform .2s;transform:rotate(180deg)}
+  .msf-body{display:flex;flex-direction:column;gap:10px;overflow:hidden}
+  .mapsearch-panel.collapsed{width:auto;max-height:none;overflow:visible}
+  .mapsearch-panel.collapsed .ph{margin-bottom:0}
+  .mapsearch-panel.collapsed .ph .s,.mapsearch-panel.collapsed .msf-body{display:none}
+  .mapsearch-panel.collapsed .msf-collapse svg{transform:rotate(0deg)}
   .msf-lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600;margin-bottom:5px}
   .mapsearch-panel input[type=text]{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 10px;color:var(--text);font-size:12.5px}
   .msf-row{display:flex;align-items:center;gap:7px}
@@ -186,6 +194,7 @@
   .pin .dot{border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);position:relative;z-index:2}
   .pin .pulse{position:absolute;top:50%;left:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--pc);z-index:1;animation:pulsering 1.9s ease-out infinite}
   .pin .pdot{width:14px;height:14px;border-radius:50%;background:#fff;border:2.5px dashed #3F5A7D;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+  .cluster-marker{display:grid;place-items:center;border-radius:50%;background:#4D9FFF;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45);color:#fff;font-weight:700;font-family:var(--disp);cursor:pointer}
   @keyframes pulsering{0%{transform:scale(1);opacity:.55}70%{transform:scale(2.7);opacity:0}100%{transform:scale(2.7);opacity:0}}
   .rpin{width:26px;height:26px;background:var(--blue);border:2.5px solid #fff;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;font-family:var(--mono);box-shadow:0 2px 7px rgba(0,0,0,.45)}
   .pop b{font-family:var(--disp);font-size:14px;font-weight:600}
@@ -473,6 +482,7 @@
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@googlemaps/markerclusterer@2.5.3/dist/index.min.js"></script>
 </head>
 <body>
 
@@ -633,7 +643,8 @@ function ic(n,c,s){c=c||'currentColor';s=s||17;const p={
   link:'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5',
   ext:'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3',
   check:'M20 6 9 17l-5-5',
-  trash:'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6'
+  trash:'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6',
+  chevron:'M6 9l6 6 6-6'
   };return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+((p[n]||'').split(/(?=M)/).map(d=>'<path d="'+d+'"/>').join(''))+'</svg>';}
 
 /* ========== DATA ========== */
@@ -643,16 +654,17 @@ const STAGES=[
   {id:'qualified',name:'Qualified',color:'#4D9FFF'},{id:'proposal',name:'Proposal',color:'#A855F7'},
   {id:'won',name:'Won',color:'#22C55E'},{id:'lost',name:'Lost',color:'#EF4444'}];
 const stageOf=id=>STAGES.find(s=>s.id===id);
-const CATS=['Nail Salon','HVAC','Plumbing','Restaurant','Auto Repair','Dental','Landscaping','Fitness'];
+const CATS=['HVAC','Plumbing','Restaurant','Auto Repair','Dental','Landscaping','Fitness','Pet Grooming','Nail Salon'];
 // Lead Finder searches every category behind the scenes (no user-picked type) and labels each
 // result from what Google actually returns — see CAT_QUERY_TERMS / inferCategory below.
+// Order here sets both the results-list order and which category wins when a place matches more
+// than one query — Nail Salon is deliberately last so it never gets priority over the others.
 const AREA_SUGGESTIONS=['Mississauga, ON','Oakville, ON','North York, ON','Vaughan, ON','Scarborough, ON','Toronto, ON','Etobicoke, ON','Brampton, ON','Richmond Hill, ON','Markham, ON'];
 const CAT_QUERY_TERMS={'Nail Salon':'nail salons','HVAC':'HVAC contractors','Plumbing':'plumbers',
   'Restaurant':'restaurants','Auto Repair':'auto repair shops','Dental':'dentists',
-  'Landscaping':'landscaping companies','Fitness':'gyms'};
+  'Landscaping':'landscaping companies','Fitness':'gyms','Pet Grooming':'pet groomers'};
 function inferCategory(types){
   const joined=(types||[]).join(' ');
-  if(/nail_salon/.test(joined))return 'Nail Salon';
   if(/hvac|heating|air_conditioning/.test(joined))return 'HVAC';
   if(/plumb/.test(joined))return 'Plumbing';
   if(/restaurant|cafe|bakery|meal_|bar\b|food/.test(joined))return 'Restaurant';
@@ -660,6 +672,8 @@ function inferCategory(types){
   if(/dent/.test(joined))return 'Dental';
   if(/landscap|lawn/.test(joined))return 'Landscaping';
   if(/gym|fitness/.test(joined))return 'Fitness';
+  if(/pet_grooming|pet_groomer/.test(joined))return 'Pet Grooming';
+  if(/nail_salon/.test(joined))return 'Nail Salon';
   return 'Other';
 }
 
@@ -686,7 +700,8 @@ const REVIEW_THEMES={
   'Auto Repair':{pros:['trustworthy diagnosis','fair pricing'],cons:['communication could be smoother']},
   'Dental':{pros:['gentle, caring staff','modern, clean office'],cons:['wait times','billing questions']},
   'Landscaping':{pros:['reliable crews','tidy, detailed work'],cons:['scheduling flexibility']},
-  'Fitness':{pros:['motivating trainers','clean equipment'],cons:['peak-hour crowding']}
+  'Fitness':{pros:['motivating trainers','clean equipment'],cons:['peak-hour crowding']},
+  'Pet Grooming':{pros:['gentle with anxious pets','great haircuts','clean, calm space'],cons:['limited weekend slots','booking can be slow']}
 };
 const REVIEW_AUTHORS=['Sarah M.','Jason T.','Priya K.','Mike D.','Amanda R.','Carlos V.','Nina P.','Dave L.','Grace W.','Tom H.'];
 const REVIEW_TIMES=['2 days ago','1 week ago','3 weeks ago','1 month ago','2 months ago'];
@@ -781,7 +796,7 @@ function dbEventToClient(row){
 function clientEventToDb(e){
   return{lead_id:e.leadId,rep_id:e.repId,type:e.type,starts_at:e.startsAt.toISOString(),duration_minutes:e.durationMinutes||30};
 }
-async function loadAllData(){
+async function loadAllData(retrying){
   try{
     const[repsRes,leadsRes,eventsRes]=await Promise.all([
       sb.from('reps').select('*').order('created_at'),
@@ -797,6 +812,14 @@ async function loadAllData(){
     addedProspects.clear();
     LEADS.forEach(l=>{if(l.sourceId)addedProspects.add(l.sourceId);});
   }catch(err){
+    // Right after sign-in, Supabase's auth service and database can be a moment out of sync,
+    // so a brand-new token's `iat` sometimes lands ahead of the database's clock — a transient
+    // "JWT issued at future" from PostgREST that clears itself within a second. Retry once
+    // before bothering the user with it.
+    if(!retrying&&/issued at future/i.test(err.message||'')){
+      await new Promise(r=>setTimeout(r,1500));
+      return loadAllData(true);
+    }
     dbError('Failed to load your data — '+err.message);
   }
 }
@@ -1025,7 +1048,7 @@ function openLead(id){
       ${aiScaffold()}
       <div class="dsec"><div class="st">Stage &amp; actions</div>
         <div class="stageflow">${STAGES.filter(s=>s.id!=='lost').map(s=>`<button class="${l.stage===s.id?'on':''}" style="${l.stage===s.id?'background:'+s.color+';border-color:'+s.color:''}" onclick="setStage('${l.id}','${s.id}')">${s.name}</button>`).join('')}</div>
-        <div class="dacts"><button class="btn" onclick="window.location.href='tel:${(l.phone||'').replace(/[^\d+]/g,'')}'"${l.phone?'':' disabled style="opacity:.5;cursor:not-allowed"'}>${ic('phone','#fff')} Call</button><button class="btn ghost" onclick="addToRoute('${l.id}')">${ic('route')} Add to route</button></div>
+        <div class="dacts"><button class="btn" onclick="window.location.href='tel:${(l.phone||'').replace(/[^\d+]/g,'')}'"${l.phone?'':' disabled style="opacity:.5;cursor:not-allowed"'}>${ic('phone','#fff')} Call</button><button class="btn ghost" onclick="addToRoute('${l.id}')">${ic('route')} Add to route</button><button class="btn ghost" onclick="viewLeadOnMap('${l.id}')">${ic('map')} View on map</button></div>
       </div>
       <div class="dsec"><div class="st">Details</div>
         <div class="kv2">
@@ -1064,6 +1087,13 @@ function setStage(id,stage){
   sb.from('leads').update({stage}).eq('id',id).then(({error})=>{if(error)dbError('Failed to save stage change — '+error.message);});
 }
 function addToRoute(id){closeDrawer();const l=leadById(id);state.rep=l.rep;go('routes');setTimeout(()=>alert(l.name+' added to '+repById(l.rep).name+"'s route"),120);}
+function viewLeadOnMap(id){
+  const l=leadById(id); if(!l||!l.lat||!l.lng)return;
+  closeDrawer();
+  state.rep=l.rep; // so the lead's marker is visible even if the map's rep filter was on someone else
+  pendingMapFocus=id;
+  go('areas');
+}
 
 /* ========== GOOGLE MAPS LOADER ========== */
 let gmapsReady=false, gmapsLoading=false, gmapsQueue=[], googleAuthError=null;
@@ -1117,11 +1147,17 @@ function submitGoogleCreds(containerId){
 }
 
 /* ========== MAP (home) ========== */
-let map,mapColorScheme=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light',searchRadiusCircle=null,mapNoWebOnly=false;
+let map,mapColorScheme=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light',searchRadiusCircle=null,mapNoWebOnly=false,mapSearchCollapsed=false;
 function renderAreas(){
   $('#v-areas').innerHTML=`<div class="maplayout"><div id="map"></div>
-    <div class="mapsearch-panel" id="mapsearchpanel">
-      <div class="ph"><div class="t">Find businesses</div><div class="s">Search Google Places for an area — pans the map there for you</div></div>
+    <div class="mapsearch-panel${mapSearchCollapsed?' collapsed':''}" id="mapsearchpanel">
+      <div class="ph">
+        <div class="ph-row">
+          <div><div class="t">Find businesses</div><div class="s">Search Google Places for an area — pans the map there for you</div></div>
+          <button class="msf-collapse" id="mapsearchcollapsebtn" onclick="toggleMapSearchPanel()" title="${mapSearchCollapsed?'Expand':'Collapse'}">${ic('chevron','currentColor',18)}</button>
+        </div>
+      </div>
+      <div class="msf-body" id="mapsearchbody">
       <div>
         <div class="msf-lbl">Business type</div>
         <input id="mapSearchCat" type="text" onkeydown="if(event.key==='Enter')searchMapArea()">
@@ -1144,11 +1180,19 @@ function renderAreas(){
         <button data-scheme="light" class="${mapColorScheme==='light'?'on':''}" onclick="toggleColorScheme('light')">Light</button>
         <button data-scheme="dark" class="${mapColorScheme==='dark'?'on':''}" onclick="toggleColorScheme('dark')">Dark</button>
       </div>
+      </div>
     </div>
   </div>`;
   setTimeout(initMap,60);
 }
+function toggleMapSearchPanel(){
+  mapSearchCollapsed=!mapSearchCollapsed;
+  const panel=$('#mapsearchpanel'), btn=$('#mapsearchcollapsebtn');
+  if(panel)panel.classList.toggle('collapsed',mapSearchCollapsed);
+  if(btn)btn.title=mapSearchCollapsed?'Expand':'Collapse';
+}
 let mapMarkers=[]; // {marker,kind,id} — kept so a pin's popup can be re-opened/anchored by id
+let pendingMapFocus=null; // lead id to pan to + open the popup for once drawMarkers next runs — see viewLeadOnMap
 function toggleColorScheme(mode){ // shared by both the main map and routes map
   mapColorScheme=mode;
   document.querySelectorAll('#baseseg button').forEach(b=>b.classList.toggle('on',b.dataset.scheme===mode));
@@ -1171,7 +1215,24 @@ function initMap(keepView){
   mapMarkers=[];
   drawMarkers();
 }
-function clearMarkers(){mapMarkers.forEach(({marker})=>{marker.map=null;});mapMarkers=[];}
+let clusterer=null;
+function clearMarkers(){
+  if(clusterer){clusterer.clearMarkers();clusterer=null;}
+  mapMarkers.forEach(({marker})=>{marker.map=null;});
+  mapMarkers=[];
+}
+// Clusters nearby pins into a single numbered bubble at low zoom, splitting apart as you zoom in
+const clusterRenderer={
+  render({count,position}){
+    const el=document.createElement('div');
+    el.className='cluster-marker';
+    const size=Math.min(56,32+Math.round(Math.sqrt(count)*6));
+    el.style.width=el.style.height=size+'px';
+    el.style.fontSize=(count>99?11:13)+'px';
+    el.textContent=count>99?'99+':String(count);
+    return new google.maps.marker.AdvancedMarkerElement({position,content:el,zIndex:1000+count});
+  }
+};
 function mapBusinesses(){
   const source=livePool.length?livePool:POOL; // live Google Places results take over once fetched
   const leads=visibleLeads().map(l=>({kind:'lead',b:l}));
@@ -1183,6 +1244,7 @@ function drawMarkers(){
   closeBizPanel();
   clearMarkers();
   const items=mapBusinesses();
+  const markers=[];
   items.forEach(({kind,b})=>{
     const el=document.createElement('div'); el.className='biz-marker';
     if(kind==='lead'){
@@ -1191,10 +1253,20 @@ function drawMarkers(){
     }else{
       el.innerHTML=`<div class="pin"><span class="pdot"></span></div>`;
     }
-    const marker=new google.maps.marker.AdvancedMarkerElement({map,position:{lat:b.lat,lng:b.lng},content:el});
+    const marker=new google.maps.marker.AdvancedMarkerElement({position:{lat:b.lat,lng:b.lng},content:el});
     marker.addListener('gmp-click',()=>showBizPanel(kind,b.id,marker));
     mapMarkers.push({marker,kind,id:b.id});
+    markers.push(marker);
   });
+  if(window.markerClusterer){
+    clusterer=new markerClusterer.MarkerClusterer({map,markers,renderer:clusterRenderer});
+  }else{
+    markers.forEach(m=>{m.map=map;}); // clustering lib failed to load — fall back to plain pins
+  }
+  if(pendingMapFocus){
+    const id=pendingMapFocus; pendingMapFocus=null;
+    if(mapMarkers.some(m=>m.kind==='lead'&&m.id===id))showBizPanel('lead',id);
+  }
 }
 function drawSearchRadius(lat,lng,radius){
   if(searchRadiusCircle)searchRadiusCircle.setMap(null);
